@@ -3,6 +3,7 @@ import { App } from './app'
 import type { Screen } from './state'
 import { renderUpload } from './screens/upload'
 import { renderSetPoint } from './screens/setpoint'
+import { renderProcessing } from './screens/processing'
 
 const root = document.querySelector<HTMLDivElement>('#app')!
 const app = new App(root)
@@ -18,7 +19,7 @@ const stub = (name: Screen, next?: Screen): void =>
 
 app.register('upload', renderUpload)
 app.register('setpoint', renderSetPoint)
-stub('processing', 'result')
+app.register('processing', renderProcessing)
 stub('result')
 
 app.go('upload')
