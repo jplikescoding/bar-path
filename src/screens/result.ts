@@ -42,8 +42,19 @@ export function renderResult(app: App, root: HTMLElement): void {
   video.addEventListener('seeked', () => render(video.currentTime))
 
   root.querySelector('#new')!.addEventListener('click', () => { app.reset(); app.go('upload') })
-  root.querySelector('#export')!.addEventListener('click', () => {
-    ;(window as any).__exportFn?.()  // wired in Task 10
+  root.querySelector('#export')!.addEventListener('click', async () => {
+    const btn = root.querySelector<HTMLButtonElement>('#export')!
+    btn.disabled = true; btn.textContent = 'Exporting…'
+    const { exportOverlay } = await import('../exportVideo')
+    const blob = await exportOverlay({ video, canvas, path, refX, startTime: app.data.startTime,
+      onProgress: (f) => { btn.textContent = `Exporting… ${Math.round(f * 100)}%` } })
+    const ext = blob.type.includes('mp4') ? 'mp4' : 'webm'
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob); a.download = `bar-path.${ext}`; a.click()
+    URL.revokeObjectURL(a.href)
+    btn.disabled = false; btn.textContent = 'Export video'
+    // restore the static end-frame view
+    video.currentTime = endT
   })
 
   video.currentTime = endT
