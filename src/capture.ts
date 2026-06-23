@@ -1,7 +1,7 @@
 export function playAndProcess(
   video: HTMLVideoElement,
   startTime: number,
-  onFrame: (gray: any, t: number) => void,
+  onFrame: (gray: any, t: number) => void | Promise<void>,
   onProgress: (frac: number) => void,
 ): Promise<void> {
   const cv = (window as any).cv
@@ -12,14 +12,14 @@ export function playAndProcess(
   const duration = video.duration
 
   return new Promise((resolve) => {
-    const onTick = (_now: number, meta: any) => {
+    const onTick = async (_now: number, meta: any) => {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
       const rgba = cv.imread(canvas)
       const gray = new cv.Mat()
       cv.cvtColor(rgba, gray, cv.COLOR_RGBA2GRAY)
       rgba.delete()
       const t = meta?.mediaTime ?? video.currentTime
-      onFrame(gray, t)
+      await onFrame(gray, t)
       gray.delete()
       onProgress(Math.min(1, (t - startTime) / Math.max(0.001, duration - startTime)))
       if (!video.ended) video.requestVideoFrameCallback(onTick)
