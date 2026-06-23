@@ -1,25 +1,16 @@
 import './style.css'
 import { App } from './app'
-import type { Screen } from './state'
 import { renderUpload } from './screens/upload'
 import { renderSetPoint } from './screens/setpoint'
 import { renderProcessing } from './screens/processing'
+import { renderResult } from './screens/result'
 
 const root = document.querySelector<HTMLDivElement>('#app')!
 const app = new App(root)
 
-const stub = (name: Screen, next?: Screen): void =>
-  app.register(name, (a, r) => {
-    r.innerHTML = `<div class="min-h-screen grid place-items-center gap-4">
-      <h1 class="text-xl">${name}</h1>
-      ${next ? `<button id="next" class="px-4 py-2 rounded bg-blue-600">Next: ${next}</button>` : ''}
-    </div>`
-    if (next) r.querySelector('#next')!.addEventListener('click', () => a.go(next))
-  })
-
 app.register('upload', renderUpload)
 app.register('setpoint', renderSetPoint)
 app.register('processing', renderProcessing)
-stub('result')
+app.register('result', renderResult)
 
 app.go('upload')
