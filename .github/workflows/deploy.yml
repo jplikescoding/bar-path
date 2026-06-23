@@ -17,6 +17,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1' # playwright is a local-only dev tool
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
