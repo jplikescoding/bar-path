@@ -6,3 +6,11 @@ prototype/__pycache__/
 node_modules/
 dist/
 .DS_Store
+dev-output.txt
+
+# SDD scratch (subagent-driven dev ledger/briefs)
+.superpowers/
+
+# Never commit tsc-emitted JS (Vite bundles; tsc is type-check only)
+src/**/*.js
+test/**/*.js
