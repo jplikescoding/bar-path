@@ -9,20 +9,25 @@ function pickMime(): string {
 
 export function exportOverlay(opts: {
   video: HTMLVideoElement
-  canvas: HTMLCanvasElement
   path: PathPoint[]
   refX: number
   startTime: number
+  endTime: number | null
   onProgress?: (f: number) => void
 }): Promise<Blob> {
-  const { video, canvas, path, refX, startTime, onProgress } = opts
+  const { video, path, refX, startTime, endTime, onProgress } = opts
+  // Composite onto our own offscreen canvas (drawImage works during playback).
+  const canvas = document.createElement('canvas')
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
   const ctx = canvas.getContext('2d')!
   const mime = pickMime()
   const stream = canvas.captureStream(30)
   const rec = new MediaRecorder(stream, { mimeType: mime })
   const chunks: BlobPart[] = []
   rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data) }
-  const endT = path[path.length - 1]?.t ?? video.duration
+  const endT = endTime ?? (path[path.length - 1]?.t ?? video.duration)
+  const span = Math.max(0.001, endT - startTime)
 
   return new Promise((resolve, reject) => {
     let stopped = false
@@ -31,11 +36,16 @@ export function exportOverlay(opts: {
     const onTick = (_n: number, meta: any) => {
       const t = meta?.mediaTime ?? video.currentTime
       drawOverlay(ctx, video, path, t, refX)
-      onProgress?.(Math.min(1, (t - startTime) / Math.max(0.001, endT - startTime)))
+      onProgress?.(Math.min(1, (t - startTime) / span))
       if (!video.ended && t < endT) video.requestVideoFrameCallback(onTick)
       else if (!stopped) { stopped = true; rec.stop() }
     }
-    const begin = () => { rec.start(); video.requestVideoFrameCallback(onTick); video.play().catch(reject) }
+    const begin = () => {
+      video.muted = true
+      rec.start()
+      video.requestVideoFrameCallback(onTick)
+      video.play().catch(reject)
+    }
     video.addEventListener('seeked', begin, { once: true })
     video.currentTime = startTime
   })

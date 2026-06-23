@@ -1,5 +1,5 @@
 import type { App } from '../app'
-import { drawOverlay } from '../overlay'
+import { drawPath } from '../overlay'
 import { rotatePath, horizontalDrift, type PathPoint } from '../geometry'
 
 export function renderResult(app: App, root: HTMLElement): void {
@@ -11,10 +11,12 @@ export function renderResult(app: App, root: HTMLElement): void {
   }
   const refX = seed.x
   const drift = horizontalDrift(path, refX)
+  const startT = app.data.startTime
+  const endT = path[path.length - 1]?.t ?? app.data.endTime ?? video.duration
 
   root.innerHTML = `
     <div class="min-h-screen flex flex-col gap-3 p-3">
-      <canvas id="cv" class="max-h-[68vh] w-auto mx-auto rounded-lg"></canvas>
+      <div id="stage" class="relative w-fit mx-auto"></div>
       <input id="scrub" type="range" min="0" max="1000" value="1000" class="w-full" />
       <div class="text-center text-sm text-neutral-300">
         Horizontal drift — left <span class="text-neutral-100">${drift.maxLeft.toFixed(0)}px</span>,
@@ -28,28 +30,34 @@ export function renderResult(app: App, root: HTMLElement): void {
       </div>
     </div>`
 
-  const canvas = root.querySelector<HTMLCanvasElement>('#cv')!
-  canvas.width = video.videoWidth; canvas.height = video.videoHeight
+  // Native video for the frame; transparent canvas on top for the path overlay.
+  const stage = root.querySelector<HTMLDivElement>('#stage')!
+  video.className = 'max-h-[60vh] w-auto block rounded-lg'
+  stage.appendChild(video)
+  const canvas = document.createElement('canvas')
+  canvas.className = 'absolute inset-0 w-full h-full pointer-events-none'
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
+  stage.appendChild(canvas)
   const ctx = canvas.getContext('2d')!
   const scrub = root.querySelector<HTMLInputElement>('#scrub')!
-  const endT = path[path.length - 1]?.t ?? video.duration
 
   let exporting = false
-  const render = (t: number) => drawOverlay(ctx, video, path, t, refX)
+  const renderAt = (t: number) => { ctx.clearRect(0, 0, canvas.width, canvas.height); drawPath(ctx, path, t, refX) }
+  const ac = new AbortController()
+  video.addEventListener('seeked', () => { if (!exporting) renderAt(video.currentTime) }, { signal: ac.signal })
   scrub.addEventListener('input', () => {
-    const t = app.data.startTime + (Number(scrub.value) / 1000) * (endT - app.data.startTime)
-    video.currentTime = t
+    video.currentTime = startT + (Number(scrub.value) / 1000) * (endT - startT)
   })
-  video.addEventListener('seeked', () => { if (!exporting) render(video.currentTime) })
 
-  root.querySelector('#new')!.addEventListener('click', () => { app.reset(); app.go('upload') })
+  root.querySelector('#new')!.addEventListener('click', () => { ac.abort(); app.reset(); app.go('upload') })
   root.querySelector('#export')!.addEventListener('click', async () => {
     const btn = root.querySelector<HTMLButtonElement>('#export')!
     btn.disabled = true; btn.textContent = 'Exporting…'
     exporting = true
     try {
       const { exportOverlay } = await import('../exportVideo')
-      const blob = await exportOverlay({ video, canvas, path, refX, startTime: app.data.startTime,
+      const blob = await exportOverlay({ video, path, refX, startTime: startT, endTime: app.data.endTime,
         onProgress: (f) => { btn.textContent = `Exporting… ${Math.round(f * 100)}%` } })
       const ext = blob.type.includes('mp4') ? 'mp4' : 'webm'
       const a = document.createElement('a')
@@ -61,16 +69,13 @@ export function renderResult(app: App, root: HTMLElement): void {
     } finally {
       exporting = false
       btn.disabled = false
-      if (btn.textContent === 'Export failed') {
-        // leave the failed label briefly
-      } else {
-        btn.textContent = 'Export video'
-      }
+      if (btn.textContent !== 'Export failed') btn.textContent = 'Export video'
       // restore the static end-frame view
       video.currentTime = endT
     }
   })
 
+  // show the last frame with the full path initially
   video.currentTime = endT
-  if (video.readyState >= 2) render(endT)
+  renderAt(endT)
 }

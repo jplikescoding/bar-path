@@ -5,59 +5,76 @@ import { playAndProcess } from '../capture'
 import { smoothPath, type PathPoint } from '../geometry'
 
 export function renderProcessing(app: App, root: HTMLElement): void {
-  const renderProgressShell = () => {
-    root.innerHTML = `
-      <div class="min-h-screen flex flex-col items-center justify-center gap-4 p-6">
-        <p class="text-neutral-300">Tracking bar path…</p>
-        <div class="w-64 h-2 bg-neutral-800 rounded-full overflow-hidden">
-          <div id="bar" class="h-full bg-blue-600" style="width:0%"></div>
+  const video = app.data.videoEl!
+  root.innerHTML = `
+    <div class="min-h-screen flex flex-col items-center justify-center gap-4 p-3">
+      <div id="stage" class="relative w-fit mx-auto">
+        <div id="retap" class="hidden absolute inset-0 bg-black/40 flex-col items-center justify-center gap-2 p-4 z-10">
+          <p class="text-amber-400 text-center font-medium">Lost the bar — tap it again.</p>
         </div>
-        <p id="pct" class="text-sm text-neutral-500">0%</p>
-      </div>`
-  }
-  renderProgressShell()
+      </div>
+      <div class="w-64 h-2 bg-neutral-800 rounded-full overflow-hidden">
+        <div id="bar" class="h-full bg-blue-600" style="width:0%"></div>
+      </div>
+      <p id="pct" class="text-sm text-neutral-500">Tracking… 0%</p>
+    </div>`
+
+  // Mount the persistent video (visible + playing) so iOS decodes frames that
+  // the capture loop's drawImage can read.
+  const stage = root.querySelector<HTMLDivElement>('#stage')!
+  video.className = 'max-h-[60vh] w-auto block rounded-lg'
+  stage.insertBefore(video, stage.firstChild)
+  // transparent canvas over the video to capture the re-tap coordinate
+  const tapCanvas = document.createElement('canvas')
+  tapCanvas.className = 'hidden absolute inset-0 w-full h-full touch-none z-20'
+  tapCanvas.width = video.videoWidth
+  tapCanvas.height = video.videoHeight
+  stage.appendChild(tapCanvas)
+
+  const barEl = root.querySelector<HTMLDivElement>('#bar')!
+  const pctEl = root.querySelector<HTMLParagraphElement>('#pct')!
+  const retapEl = root.querySelector<HTMLDivElement>('#retap')!
+
+  const reTap = (): Promise<{ x: number; y: number }> => new Promise((resolve) => {
+    video.pause()
+    retapEl.classList.remove('hidden'); retapEl.classList.add('flex')
+    tapCanvas.classList.remove('hidden')
+    tapCanvas.addEventListener('pointerdown', (e) => {
+      const rect = tapCanvas.getBoundingClientRect()
+      retapEl.classList.add('hidden'); retapEl.classList.remove('flex')
+      tapCanvas.classList.add('hidden')
+      resolve({
+        x: (e.clientX - rect.left) * (tapCanvas.width / rect.width),
+        y: (e.clientY - rect.top) * (tapCanvas.height / rect.height),
+      })
+    }, { once: true })
+  })
 
   const run = async () => {
     const cv = await loadOpenCV()
-    const video = app.data.videoEl!
     let seed = app.data.seed!
+    const start = app.data.startTime
+    const end = app.data.endTime != null && app.data.endTime > start ? app.data.endTime : null
     const tracker = createTracker(cv)
-
-    const reTap = (): Promise<{ x: number; y: number }> => new Promise((resolve) => {
-      video.pause()
-      const c = document.createElement('canvas')
-      c.width = video.videoWidth; c.height = video.videoHeight
-      c.className = 'max-h-[70vh] w-auto mx-auto rounded-lg touch-none'
-      c.getContext('2d')!.drawImage(video, 0, 0, c.width, c.height)
-      root.innerHTML = `<div class="min-h-screen flex flex-col items-center justify-center gap-3 p-4">
-        <p class="text-amber-400">Lost the bar — tap it again to continue.</p></div>`
-      root.firstElementChild!.appendChild(c)
-      c.addEventListener('pointerdown', (e) => {
-        const rect = c.getBoundingClientRect()
-        resolve({ x: (e.clientX - rect.left) * (c.width / rect.width),
-                  y: (e.clientY - rect.top) * (c.height / rect.height) })
-      }, { once: true })
-    })
-
     try {
       const raw: PathPoint[] = []
       let first = true
-      await playAndProcess(video, app.data.startTime, async (gray, t) => {
+      await playAndProcess(video, start, end, async (gray, t) => {
         if (first) { tracker.seedFromGray(gray, seed); raw.push({ x: seed.x, y: seed.y, t }); first = false; return }
         const r = tracker.step(gray)
-        // On tracking loss we pause for a re-tap; frames during the loss are not
-        // recorded (the path resumes from the re-seeded point).
+        // On tracking loss we pause for a re-tap; the path resumes from the
+        // re-seeded point (frames during the loss are not recorded).
         if (r.lost) {
           seed = await reTap()
           tracker.seedFromGray(gray, seed)
           raw.push({ x: seed.x, y: seed.y, t })
-          renderProgressShell()
           video.play()
-        } else raw.push({ x: r.x, y: r.y, t })
+        } else {
+          raw.push({ x: r.x, y: r.y, t })
+        }
       }, (f) => {
         const p = Math.round(f * 100)
-        const barEl = root.querySelector<HTMLDivElement>('#bar'); if (barEl) barEl.style.width = `${p}%`
-        const pctEl = root.querySelector<HTMLParagraphElement>('#pct'); if (pctEl) pctEl.textContent = `${p}%`
+        barEl.style.width = `${p}%`; pctEl.textContent = `Tracking… ${p}%`
       })
       app.data.path = smoothPath(raw, 5)
       app.go('result')

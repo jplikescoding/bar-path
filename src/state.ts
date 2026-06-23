@@ -8,6 +8,7 @@ export interface AppData {
   seed: { x: number; y: number } | null
   verticalAngleRad: number | null
   startTime: number
+  endTime: number | null
   path: PathPoint[]
 }
 
@@ -18,6 +19,7 @@ export function initialData(): AppData {
     seed: null,
     verticalAngleRad: null,
     startTime: 0,
+    endTime: null,
     path: [],
   }
 }

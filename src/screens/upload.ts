@@ -26,6 +26,8 @@ export function renderUpload(app: App, root: HTMLElement): void {
     video.src = url
     video.muted = true
     video.playsInline = true
+    video.setAttribute('playsinline', '')        // iOS: render inline, don't fullscreen
+    video.setAttribute('webkit-playsinline', '') // older iOS Safari
     video.preload = 'auto'
     video.addEventListener('loadedmetadata', () => {
       app.data.videoUrl = url
