@@ -5,10 +5,9 @@ export function loadOpenCV(): Promise<any> {
   promise = new Promise((resolve, reject) => {
     const cv = (window as any).cv
     const ready = (m: any) => {
-      // when loaded via CDN, cv may be a module with onRuntimeInitialized,
-      // or already-initialized depending on build. Handle both.
       if (m && typeof m.Mat === 'function') return resolve(m)
       m.onRuntimeInitialized = () => resolve(m)
+      setTimeout(() => reject(new Error('OpenCV runtime init timeout')), 30000)
     }
     const check = () => {
       const g = (window as any).cv
