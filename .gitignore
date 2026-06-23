@@ -7,3 +7,6 @@ node_modules/
 dist/
 .DS_Store
 dev-output.txt
+
+# SDD scratch (subagent-driven dev ledger/briefs)
+.superpowers/
