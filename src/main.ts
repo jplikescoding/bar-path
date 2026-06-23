@@ -1,6 +1,7 @@
 import './style.css'
 import { App } from './app'
 import type { Screen } from './state'
+import { renderUpload } from './screens/upload'
 
 const root = document.querySelector<HTMLDivElement>('#app')!
 const app = new App(root)
@@ -14,7 +15,7 @@ const stub = (name: Screen, next?: Screen): void =>
     if (next) r.querySelector('#next')!.addEventListener('click', () => a.go(next))
   })
 
-stub('upload', 'setpoint')
+app.register('upload', renderUpload)
 stub('setpoint', 'processing')
 stub('processing', 'result')
 stub('result')
