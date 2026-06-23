@@ -39,7 +39,8 @@ export function renderSetPoint(app: App, root: HTMLElement): void {
   const seekFrac = (f: number) => {
     video.currentTime = f * video.duration
   }
-  video.addEventListener('seeked', draw)
+  const ac = new AbortController()
+  video.addEventListener('seeked', draw, { signal: ac.signal })
 
   scrub.addEventListener('input', () => seekFrac(Number(scrub.value) / 1000))
 
@@ -68,7 +69,7 @@ export function renderSetPoint(app: App, root: HTMLElement): void {
     hint.textContent = 'Tap the bottom of a true-vertical line (e.g. a rack upright).'
   })
 
-  trackBtn.addEventListener('click', () => app.go('processing'))
+  trackBtn.addEventListener('click', () => { ac.abort(); app.go('processing') })
 
   seekFrac(0)
   // draw once metadata/first frame is painted
