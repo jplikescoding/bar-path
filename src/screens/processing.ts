@@ -51,6 +51,7 @@ export function renderProcessing(app: App, root: HTMLElement): void {
   })
 
   const run = async () => {
+    pctEl.textContent = 'Loading vision engine…'
     const cv = await loadOpenCV()
     let seed = app.data.seed!
     const start = app.data.startTime
