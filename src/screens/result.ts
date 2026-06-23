@@ -45,16 +45,27 @@ export function renderResult(app: App, root: HTMLElement): void {
   root.querySelector('#export')!.addEventListener('click', async () => {
     const btn = root.querySelector<HTMLButtonElement>('#export')!
     btn.disabled = true; btn.textContent = 'Exporting…'
-    const { exportOverlay } = await import('../exportVideo')
-    const blob = await exportOverlay({ video, canvas, path, refX, startTime: app.data.startTime,
-      onProgress: (f) => { btn.textContent = `Exporting… ${Math.round(f * 100)}%` } })
-    const ext = blob.type.includes('mp4') ? 'mp4' : 'webm'
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob); a.download = `bar-path.${ext}`; a.click()
-    URL.revokeObjectURL(a.href)
-    btn.disabled = false; btn.textContent = 'Export video'
-    // restore the static end-frame view
-    video.currentTime = endT
+    try {
+      const { exportOverlay } = await import('../exportVideo')
+      const blob = await exportOverlay({ video, canvas, path, refX, startTime: app.data.startTime,
+        onProgress: (f) => { btn.textContent = `Exporting… ${Math.round(f * 100)}%` } })
+      const ext = blob.type.includes('mp4') ? 'mp4' : 'webm'
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob); a.download = `bar-path.${ext}`; a.click()
+      URL.revokeObjectURL(a.href)
+    } catch (err) {
+      btn.textContent = 'Export failed'
+      console.error(err)
+    } finally {
+      btn.disabled = false
+      if (btn.textContent === 'Export failed') {
+        // leave the failed label briefly
+      } else {
+        btn.textContent = 'Export video'
+      }
+      // restore the static end-frame view
+      video.currentTime = endT
+    }
   })
 
   video.currentTime = endT

@@ -25,6 +25,7 @@ export function exportOverlay(opts: {
   const endT = path[path.length - 1]?.t ?? video.duration
 
   return new Promise((resolve, reject) => {
+    let stopped = false
     rec.onstop = () => resolve(new Blob(chunks, { type: mime }))
     rec.onerror = (e) => reject(e)
     const onTick = (_n: number, meta: any) => {
@@ -32,9 +33,9 @@ export function exportOverlay(opts: {
       drawOverlay(ctx, video, path, t, refX)
       onProgress?.(Math.min(1, (t - startTime) / Math.max(0.001, endT - startTime)))
       if (!video.ended && t < endT) video.requestVideoFrameCallback(onTick)
-      else rec.stop()
+      else if (!stopped) { stopped = true; rec.stop() }
     }
-    const begin = () => { rec.start(); video.requestVideoFrameCallback(onTick); video.play() }
+    const begin = () => { rec.start(); video.requestVideoFrameCallback(onTick); video.play().catch(reject) }
     video.addEventListener('seeked', begin, { once: true })
     video.currentTime = startTime
   })
