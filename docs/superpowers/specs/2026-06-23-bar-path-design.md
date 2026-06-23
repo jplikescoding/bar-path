@@ -86,21 +86,53 @@ Single-screen app with four states:
 2. **Set start point** — scrub to the start frame, tap the plate.
 3. **Processing** — progress indicator while frames are tracked.
 4. **Result** — video with the bar path traced over it, a scrub slider, a
-   vertical reference line at the start x-position, and a **Download video**
-   button.
+   vertical reference line, and a **Download video** button.
 
-Mobile-first, uncluttered, Tailwind styling.
+Optional within the "Set start point" state: **tap a true-vertical reference**
+(e.g. a squat-rack upright, which is genuinely vertical in the real world). The
+app rotates the path display to that reference, correcting simple camera tilt
+from low/solo angles. Skippable; defaults to the start x-position when not set.
+
+Mobile-first, uncluttered, Tailwind styling. The Upload/start state shows a
+brief **filming-guidance note** (film side-on, camera at ~bar/hip height,
+perpendicular to the bar) so results stay trustworthy.
 
 ## Metrics (light for v1)
 
 - **Horizontal drift** — how far the bar wandered forward/back from the vertical
-  reference line (the primary squat/deadlift path tell).
+  reference line (the primary squat/deadlift path tell). Measured against the
+  tapped true-vertical reference if set, otherwise the start x-position.
 - **Full path trace** — reps visually distinguishable in the overlay.
 
 Optional (only if trivial): tap two points across a plate to set a pixel→cm
 scale, so drift can read in centimeters. Not a v1 blocker.
 
 Deeper numeric metrics are deferred to v2 alongside body tracking.
+
+## Camera angle & geometry
+
+Validated against JP's real footage (2026-06-23). Two distinct concerns:
+
+- **Tracking** (locating the bar point frame-to-frame) is **robust to angle.**
+  Optical flow follows a local texture patch; the deadlift plate's bright red
+  center hub is a near-ideal target. The real tracking enemies are motion blur,
+  occlusion, and the point leaving frame — not angle.
+- **Interpretation** (is the path vertical / how much did it drift) is **very
+  sensitive to angle.** A low/tilted camera introduces perspective keystoning,
+  so a truly vertical bar path projects as a slanted/curved line — confirmed by
+  a commercial app drawing the same slant on JP's low-angle clip. At non-side
+  angles, forward/back drift partly moves into the screen and reads poorly.
+
+Implications baked into v1:
+
+1. **Filming guidance** in-app: side-on, camera ~bar/hip height, perpendicular
+   to the bar. A tripod/stand at that height yields honest paths for free.
+2. **Tap-a-vertical-reference** (see UI flow) corrects simple tilt cheaply.
+3. We do **not** depend on perfect filming; the reference + re-tap recovery keep
+   typical solo low-angle clips usable.
+
+Full perspective correction (homography from the rack rectangle) is deferred to
+v2 — see Future directions.
 
 ## Export
 
@@ -115,6 +147,9 @@ file. Output format follows best phone-browser support (likely `.webm` or
   screen-record — never worse than the current workflow.
 - **Tracking accuracy across gyms/lighting/angles.** Mitigated by the re-tap
   recovery flow and by tuning against JP's real footage.
+- **Camera-angle slant** on low/solo shots distorts the *displayed* path (not
+  the tracking). Mitigated by the tap-a-vertical-reference tilt correction and
+  in-app filming guidance; full homography correction deferred to v2.
 
 ## Success criteria
 
@@ -131,5 +166,7 @@ a ground-truth reference for comparing tracker output.
 
 - v2: body/pose tracking + metrics-focused output (back angle, bar-over-midfoot,
   hip/knee timing).
+- v2: full perspective correction via homography (tap the rack rectangle to
+  rectify the image so the path is geometrically true regardless of angle).
 - Later: ML-based detection/analysis as its own phase or project.
 - Possible PWA install, OHP support, automatic bar detection.
