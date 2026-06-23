@@ -1,8 +1,12 @@
 import type { App } from '../app'
 import { angleFromVertical } from '../geometry'
+import { loadOpenCV } from '../opencv'
 
 export function renderSetPoint(app: App, root: HTMLElement): void {
   const video = app.data.videoEl!
+  // Begin loading the vision engine in the background while the user sets up,
+  // so it's ready (and cached) by the time they hit Track.
+  loadOpenCV().catch(() => {})
   root.innerHTML = `
     <div class="min-h-screen flex flex-col gap-3 p-3">
       <p id="hint" class="text-sm text-center text-neutral-200 min-h-[2.5rem] flex items-center justify-center">
