@@ -21,18 +21,21 @@ export function renderProcessing(app: App, root: HTMLElement): void {
     const video = app.data.videoEl!
     const seed = app.data.seed!
     const tracker = createTracker(cv)
-    const raw: PathPoint[] = []
-    let first = true
-    await playAndProcess(video, app.data.startTime, (gray, t) => {
-      if (first) { tracker.seedFromGray(gray, seed); raw.push({ x: seed.x, y: seed.y, t }); first = false }
-      else { const r = tracker.step(gray); raw.push({ x: r.x, y: r.y, t }) }
-    }, (f) => {
-      const p = Math.round(f * 100)
-      barEl.style.width = `${p}%`; pctEl.textContent = `${p}%`
-    })
-    tracker.delete()
-    app.data.path = smoothPath(raw, 5)
-    app.go('result')
+    try {
+      const raw: PathPoint[] = []
+      let first = true
+      await playAndProcess(video, app.data.startTime, (gray, t) => {
+        if (first) { tracker.seedFromGray(gray, seed); raw.push({ x: seed.x, y: seed.y, t }); first = false }
+        else { const r = tracker.step(gray); raw.push({ x: r.x, y: r.y, t }) }
+      }, (f) => {
+        const p = Math.round(f * 100)
+        barEl.style.width = `${p}%`; pctEl.textContent = `${p}%`
+      })
+      app.data.path = smoothPath(raw, 5)
+      app.go('result')
+    } finally {
+      tracker.delete()
+    }
   }
   run().catch((err) => {
     root.innerHTML = `<div class="min-h-screen grid place-items-center p-6 text-center">
