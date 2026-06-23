@@ -46,4 +46,11 @@ describe('horizontalDrift', () => {
     expect(d.maxLeft).toBeCloseTo(4)    // 10-6
     expect(d.range).toBeCloseTo(8)      // 14-6
   })
+  it('clamps maxLeft to 0 when all points are right of refX', () => {
+    const pts = [{ x: 12, y: 0, t: 0 }, { x: 18, y: 1, t: 1 }]
+    const d = horizontalDrift(pts, 10)
+    expect(d.maxLeft).toBe(0)
+    expect(d.maxRight).toBeCloseTo(8)
+    expect(d.range).toBeCloseTo(6)
+  })
 })

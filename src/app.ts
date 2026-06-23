@@ -20,6 +20,8 @@ export class App {
   }
 
   reset() {
+    if (this.data.videoUrl) URL.revokeObjectURL(this.data.videoUrl)
+    if (this.data.videoEl) { this.data.videoEl.removeAttribute('src'); this.data.videoEl.load() }
     this.data = initialData()
   }
 }

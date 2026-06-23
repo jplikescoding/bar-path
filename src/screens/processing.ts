@@ -45,6 +45,8 @@ export function renderProcessing(app: App, root: HTMLElement): void {
       await playAndProcess(video, app.data.startTime, async (gray, t) => {
         if (first) { tracker.seedFromGray(gray, seed); raw.push({ x: seed.x, y: seed.y, t }); first = false; return }
         const r = tracker.step(gray)
+        // On tracking loss we pause for a re-tap; frames during the loss are not
+        // recorded (the path resumes from the re-seeded point).
         if (r.lost) {
           seed = await reTap()
           tracker.seedFromGray(gray, seed)

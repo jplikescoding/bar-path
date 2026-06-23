@@ -34,17 +34,19 @@ export function renderResult(app: App, root: HTMLElement): void {
   const scrub = root.querySelector<HTMLInputElement>('#scrub')!
   const endT = path[path.length - 1]?.t ?? video.duration
 
+  let exporting = false
   const render = (t: number) => drawOverlay(ctx, video, path, t, refX)
   scrub.addEventListener('input', () => {
     const t = app.data.startTime + (Number(scrub.value) / 1000) * (endT - app.data.startTime)
     video.currentTime = t
   })
-  video.addEventListener('seeked', () => render(video.currentTime))
+  video.addEventListener('seeked', () => { if (!exporting) render(video.currentTime) })
 
   root.querySelector('#new')!.addEventListener('click', () => { app.reset(); app.go('upload') })
   root.querySelector('#export')!.addEventListener('click', async () => {
     const btn = root.querySelector<HTMLButtonElement>('#export')!
     btn.disabled = true; btn.textContent = 'Exporting…'
+    exporting = true
     try {
       const { exportOverlay } = await import('../exportVideo')
       const blob = await exportOverlay({ video, canvas, path, refX, startTime: app.data.startTime,
@@ -57,6 +59,7 @@ export function renderResult(app: App, root: HTMLElement): void {
       btn.textContent = 'Export failed'
       console.error(err)
     } finally {
+      exporting = false
       btn.disabled = false
       if (btn.textContent === 'Export failed') {
         // leave the failed label briefly
