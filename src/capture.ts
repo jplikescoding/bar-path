@@ -25,6 +25,7 @@ export function playAndProcess(
       if (!video.ended) video.requestVideoFrameCallback(onTick)
     }
     const begin = () => {
+      video.muted = true
       video.requestVideoFrameCallback(onTick)
       video.play()
     }

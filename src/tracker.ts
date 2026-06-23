@@ -53,9 +53,13 @@ export function createTracker(cv: any): Tracker {
       }
       p1.delete(); st.delete(); err.delete()
       if (good.length < 3) return { ...bar, lost: true }
+      const median = (arr: number[]) => {
+        const m = arr.length >> 1
+        return arr.length % 2 ? arr[m] : (arr[m - 1] + arr[m]) / 2
+      }
       const xs = good.map((g) => g.x - g.dx).sort((a, b) => a - b)
       const ys = good.map((g) => g.y - g.dy).sort((a, b) => a - b)
-      bar = { x: xs[xs.length >> 1], y: ys[ys.length >> 1] }
+      bar = { x: median(xs), y: median(ys) }
       // refresh anchor so it adapts to rotation/scale
       offsets = good.map((g) => ({ dx: g.x - bar.x, dy: g.y - bar.y }))
       p0.delete(); p0 = writePoints(good.map((g) => ({ x: g.x, y: g.y })))
