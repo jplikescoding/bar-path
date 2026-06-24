@@ -36,12 +36,13 @@ export function exportOverlay(opts: {
     const onTick = (_n: number, meta: any) => {
       const t = meta?.mediaTime ?? video.currentTime
       drawOverlay(ctx, video, path, t, refX)
-      onProgress?.(Math.min(1, (t - startTime) / span))
+      onProgress?.(Math.max(0, Math.min(1, (t - startTime) / span)))
       if (!video.ended && t < endT) video.requestVideoFrameCallback(onTick)
       else if (!stopped) { stopped = true; rec.stop() }
     }
     const begin = () => {
       video.muted = true
+      video.playbackRate = 1
       rec.start()
       video.requestVideoFrameCallback(onTick)
       video.play().catch(reject)
