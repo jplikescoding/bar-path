@@ -8,6 +8,9 @@ export function renderUpload(app: App, root: HTMLElement): void {
         Choose a lift video
         <input id="file" type="file" accept="video/*" class="hidden" />
       </label>
+      <button id="library" class="px-4 py-2 rounded-lg bg-neutral-700 text-sm active:bg-neutral-600">
+        Saved lifts
+      </button>
       <div class="max-w-sm text-sm text-neutral-400 leading-relaxed">
         <p class="font-medium text-neutral-300 mb-1">For best results</p>
         Film <span class="text-neutral-200">side-on</span>, camera at roughly
@@ -16,6 +19,8 @@ export function renderUpload(app: App, root: HTMLElement): void {
         fine but the path will look slanted — you can correct that on the next screen.
       </div>
     </div>`
+
+  root.querySelector('#library')!.addEventListener('click', () => app.go('library'))
 
   const input = root.querySelector<HTMLInputElement>('#file')!
   input.addEventListener('change', () => {

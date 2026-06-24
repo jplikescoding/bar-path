@@ -1,6 +1,8 @@
 import type { App } from '../app'
 import { drawReview } from '../overlay'
 import { rotatePath, horizontalDrift, type PathPoint } from '../geometry'
+import { saveAnalysis } from '../library'
+import { defaultName, type SavedAnalysis } from '../librarySupport'
 
 export function renderResult(app: App, root: HTMLElement): void {
   const video = app.data.videoEl!
@@ -26,10 +28,12 @@ export function renderResult(app: App, root: HTMLElement): void {
         total <span class="text-neutral-100">${drift.range.toFixed(0)}px</span>
         ${app.data.verticalAngleRad != null ? '<span class="text-cyan-400">(tilt-corrected)</span>' : ''}
       </div>
-      <div class="flex gap-2 justify-center">
+      <div class="flex gap-2 justify-center flex-wrap">
+        <button id="save" class="px-4 py-2 rounded bg-blue-600">Save</button>
         <button id="export" class="px-4 py-2 rounded bg-green-600">Export video</button>
         <button id="new" class="px-4 py-2 rounded bg-neutral-700">New video</button>
       </div>
+      <div id="saved-msg" class="text-center text-sm text-green-400 h-5"></div>
     </div>`
 
   const stage = root.querySelector<HTMLDivElement>('#stage')!
@@ -96,6 +100,55 @@ export function renderResult(app: App, root: HTMLElement): void {
       exporting = false; btn.disabled = false
       if (btn.textContent !== 'Export failed') btn.textContent = 'Export video'
       video.currentTime = endT; render(endT); setScrubFromTime(endT)
+    }
+  })
+
+  // Draw the end frame + full path to a small offscreen canvas → JPEG data URL.
+  const makeThumbnail = (): string => {
+    const maxW = 240
+    const scale = video.videoWidth > 0 ? Math.min(1, maxW / video.videoWidth) : 1
+    const tw = Math.max(1, Math.round(video.videoWidth * scale))
+    const th = Math.max(1, Math.round(video.videoHeight * scale))
+    const off = document.createElement('canvas')
+    off.width = tw; off.height = th
+    const octx = off.getContext('2d')!
+    try { octx.drawImage(video, 0, 0, tw, th) } catch { /* frame not ready */ }
+    octx.save()
+    octx.scale(scale, scale)
+    drawReview(octx, path, endT, refX)
+    octx.restore()
+    return off.toDataURL('image/jpeg', 0.6)
+  }
+
+  const saveBtn = root.querySelector<HTMLButtonElement>('#save')!
+  const savedMsg = root.querySelector<HTMLDivElement>('#saved-msg')!
+  saveBtn.addEventListener('click', async () => {
+    saveBtn.disabled = true; saveBtn.textContent = 'Saving…'
+    try {
+      const blob = await (await fetch(app.data.videoUrl!)).blob()
+      const createdAt = Date.now()
+      const record: SavedAnalysis = {
+        id: crypto.randomUUID(),
+        name: defaultName(createdAt),
+        createdAt,
+        video: blob,
+        seed,
+        startTime: startT,
+        endTime: app.data.endTime,
+        verticalAngleRad: app.data.verticalAngleRad,
+        path: app.data.path,
+        thumbnail: makeThumbnail(),
+        driftRange: drift.range,
+      }
+      await saveAnalysis(record)
+      saveBtn.textContent = 'Saved ✓'
+      savedMsg.innerHTML = '<button id="go-library" class="underline">View in library</button>'
+      savedMsg.querySelector('#go-library')!.addEventListener('click', () => {
+        ac.abort(); video.pause(); app.go('library')
+      })
+    } catch (err) {
+      console.error(err)
+      saveBtn.disabled = false; saveBtn.textContent = 'Save failed — retry'
     }
   })
 
