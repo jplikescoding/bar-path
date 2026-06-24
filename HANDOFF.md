@@ -1,6 +1,6 @@
 # Bar Path Tracker — Handoff / Status
 
-Last updated: 2026-06-23 (evening session).
+Last updated: 2026-06-24 (PRs #1/#2 merged + "Precision Instrument" design pass shipped).
 
 ## What this is
 A fully **client-side** web app that tracks a barbell's bar path in a lifting video
@@ -58,19 +58,31 @@ review it (play/pause/scrub/slow-mo), and export an overlaid `.mp4`.
 - Real device testing is JP's: he tests on **iPhone Safari, Private tab** (Private avoids the
   Pages HTML cache so he gets the latest deploy).
 
-## PENDING: Saved Library (cloud build → PR)
-A cloud agent (Opus 4.8) is building the **Saved Library** feature per
-`docs/superpowers/specs/2026-06-23-saved-library-design.md` on branch `feat/saved-library`
-and will **open a PR** (it does NOT touch master). Triggered 2026-06-24 ~03:22 UTC.
-- **Next step:** `gh pr list --repo jplikescoding/bar-path` → review the PR → JP device-tests
-  (save a lift → see in library → reopen → delete → survives reload) → merge to deploy.
-- Routine: https://claude.ai/code/routines/trig_015mv8FL6TU4f6W7V7GczTQY
+## DONE: Saved Library + PWA install (both merged to master)
+PR #1 (saved library) and PR #2 (PWA install) were reviewed, verified (17/17 tests,
+build green), and merged 2026-06-24. Both cloud branches are merged.
+- **Device-test checklist (JP):** save a lift → see in library → reopen → delete →
+  survives reload; Add to Home Screen → launches standalone; offline reload works.
+
+## Design: "Precision Instrument" identity (2026-06-24)
+Whole UI reskinned around the measurement-instrument concept. Deep graphite ground
+(`--bg #0b0e11`), chalk text, and **amber `#FFB020`** (from the plumb line) as the
+ONE action color — rule of thumb: *color = data, amber = action*. Numeric readouts
+use self-hosted **IBM Plex Mono**; headings use **Space Grotesk**. Signature elements:
+the plumb-line-vs-drifting-path glyph and the result screen's drift-from-plumb gauge.
+- Tokens + components live in `src/style.css`; fonts in `src/fonts/*.woff2`.
+- **Fonts MUST be referenced relatively in CSS** (`url('./fonts/…')`) so Vite hashes
+  and rebases them for the GitHub Pages `base:'./'` subpath. An absolute `/fonts/…`
+  404s under `/bar-path/`. They're runtime-cached by the SW (not in its precache list).
+- SW now does **network-first for HTML navigations** (cache `bp-v2`) so fresh deploys
+  show immediately; assets/fonts/opencv stay cache-first for offline.
 
 ## Backlog / future
 1. **Side-on test** — JP films a set from directly to the side (true forward/back drift; his
    current clips are end-on so forward/back is invisible).
-2. **UI polish** — spacing, fonts, colors, icons, app header, PWA "Add to Home Screen" icon.
-3. **Saved library** — in progress (see above).
+2. **UI polish** — DONE (Precision Instrument design pass, see above). Future: a
+   real loading/skeleton state, transitions between screens, a velocity graph.
+3. **Saved library** — DONE (merged).
 4. **v2: body/pose tracking** + toggleable on/off **analysis cues** during the rep showing
    *where* form broke down (JP's idea; needs body tracking behind it).
 5. Possible later: velocity graph synced to playback (like one reference app), draw tools.
