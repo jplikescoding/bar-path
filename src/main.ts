@@ -14,3 +14,11 @@ app.register('processing', renderProcessing)
 app.register('result', renderResult)
 
 app.go('upload')
+
+// Register the service worker (PWA: offline app-shell + cached OpenCV engine).
+// Guarded + relative path so it works under the GitHub Pages subpath.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {})
+  })
+}

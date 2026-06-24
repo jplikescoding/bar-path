@@ -8,7 +8,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
+    "types": ["vite/client", "node"],
     "skipLibCheck": true
   },
   "include": ["src", "test"]
