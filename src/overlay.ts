@@ -38,17 +38,26 @@ export function drawReview(
   ctx.clearRect(0, 0, w, h)
   ctx.strokeStyle = 'rgba(255,180,0,0.6)'; ctx.lineWidth = 2
   ctx.beginPath(); ctx.moveTo(refX, 0); ctx.lineTo(refX, h); ctx.stroke()
-  if (path.length > 1) {
-    ctx.strokeStyle = '#22ff55'; ctx.lineWidth = 4; ctx.lineJoin = 'round'
-    ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y)
-    for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y)
-    ctx.stroke()
+
+  // Progressive trail: only draw the path up to the current time, with the
+  // freshest segment bright green fading to gray over FADE seconds behind it.
+  const FADE = 1.2
+  ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.lineCap = 'round'
+  let lead: PathPoint | null = path.length ? path[0] : null
+  for (let i = 1; i < path.length; i++) {
+    if (path[i].t > currentT) break
+    const k = Math.min(1, Math.max(0, (currentT - path[i].t) / FADE)) // 0 fresh, 1 old
+    const r = Math.round(34 + (120 - 34) * k)
+    const g = Math.round(255 + (120 - 255) * k)
+    const b = Math.round(85 + (120 - 85) * k)
+    ctx.strokeStyle = `rgb(${r},${g},${b})`
+    ctx.beginPath(); ctx.moveTo(path[i - 1].x, path[i - 1].y); ctx.lineTo(path[i].x, path[i].y); ctx.stroke()
+    lead = path[i]
   }
-  if (path.length > 0) {
-    let best = path[0]
-    for (const p of path) if (Math.abs(p.t - currentT) < Math.abs(best.t - currentT)) best = p
+  // red marker at the leading edge (the bar's position "now")
+  if (lead) {
     ctx.fillStyle = '#ff3344'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2
-    ctx.beginPath(); ctx.arc(best.x, best.y, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
+    ctx.beginPath(); ctx.arc(lead.x, lead.y, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke()
   }
 }
 

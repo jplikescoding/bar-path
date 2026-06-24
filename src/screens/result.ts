@@ -19,7 +19,7 @@ export function renderResult(app: App, root: HTMLElement): void {
         <button id="play" class="w-14 h-11 rounded bg-blue-600 text-lg">▶</button>
         <button id="speed" class="px-3 h-11 rounded bg-neutral-700 text-sm">🐢 1×</button>
       </div>
-      <input id="scrub" type="range" min="0" max="1000" value="0" class="w-full" />
+      <input id="scrub" type="range" min="0" max="1000" value="1000" class="w-full" />
       <div class="text-center text-sm text-neutral-300">
         Horizontal drift — left <span class="text-neutral-100">${drift.maxLeft.toFixed(0)}px</span>,
         right <span class="text-neutral-100">${drift.maxRight.toFixed(0)}px</span>,
@@ -95,11 +95,12 @@ export function renderResult(app: App, root: HTMLElement): void {
     finally {
       exporting = false; btn.disabled = false
       if (btn.textContent !== 'Export failed') btn.textContent = 'Export video'
-      video.currentTime = startT; render(startT); setScrubFromTime(startT)
+      video.currentTime = endT; render(endT); setScrubFromTime(endT)
     }
   })
 
-  // start paused at the first frame with the full path visible
-  video.currentTime = startT
-  render(startT)
+  // rest at the end so the full (faded) path is visible; press play to watch it
+  // redraw progressively from the start.
+  video.currentTime = endT
+  render(endT)
 }
