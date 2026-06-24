@@ -1,3 +1,330 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Precision Instrument — a calm, technical identity for a measurement tool.
+   The video is the hero; chrome is near-monochrome graphite + chalk; the one
+   saturated UI color is amber, borrowed from the plumb line. Numbers read in
+   IBM Plex Mono so the drift figures feel like an instrument readout.
+   ────────────────────────────────────────────────────────────────────────── */
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./fonts/ibm-plex-mono-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./fonts/ibm-plex-mono-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./fonts/space-grotesk-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/space-grotesk-latin-700-normal.woff2') format('woff2');
+}
+
+:root {
+  --bg: #0b0e11;
+  --surface: #14181e;
+  --surface-2: #1b2129;
+  --line: #272e38;
+  --line-bright: #3a434f;
+  --chalk: #f2f4f5;
+  --muted: #9ba4af;
+  --faint: #5c6470;
+  --amber: #ffb020;
+  --amber-deep: #e2960c;
+  --amber-ink: #140d01;
+  --path: #22ff55;
+  --mark: #ff3344;
+  --font-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    font-family: var(--font-body);
+    color: var(--chalk);
+    background-color: var(--bg);
+    /* faint instrument vignette + a single plumb hairline down the center */
+    background-image:
+      radial-gradient(120% 80% at 50% -10%, rgba(255, 176, 32, 0.05), transparent 60%),
+      linear-gradient(180deg, #0c1014 0%, var(--bg) 38%);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Respect the iOS notch / home indicator (viewport-fit=cover is set). */
+  #app {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer components {
+  /* Small tracked monospace label — the "instrument" voice. */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 0.6875rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  /* Tabular numeric readout. */
+  .readout {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 1rem;
+  }
+
+  /* The video frame — the hero gets a crisp bezel and a soft lift. */
+  .frame {
+    position: relative;
+    width: -moz-fit-content;
+    width: fit-content;
+    margin-inline: auto;
+    border-radius: 0.9rem;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--line-bright);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.04) inset,
+      0 18px 50px -24px rgba(0, 0, 0, 0.9);
+  }
+  .frame > video {
+    display: block;
+  }
+
+  /* Buttons ──────────────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-family: var(--font-display);
+    font-weight: 500;
+    line-height: 1;
+    border-radius: 0.7rem;
+    padding: 0.75rem 1.15rem;
+    border: 1px solid transparent;
+    transition: transform 0.06s ease, background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+    user-select: none;
+  }
+  .btn:active {
+    transform: scale(0.97);
+  }
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .btn:disabled:active {
+    transform: none;
+  }
+
+  /* Primary action — amber, the only saturated chrome color. */
+  .btn-amber {
+    background: var(--amber);
+    color: var(--amber-ink);
+    font-weight: 700;
+    box-shadow: 0 8px 24px -12px rgba(255, 176, 32, 0.7);
+  }
+  .btn-amber:not(:disabled):hover {
+    background: #ffbe45;
+  }
+  .btn-amber:not(:disabled):active {
+    background: var(--amber-deep);
+  }
+
+  /* Secondary — quiet outlined surface. */
+  .btn-ghost {
+    background: var(--surface-2);
+    color: var(--chalk);
+    border-color: var(--line);
+  }
+  .btn-ghost:not(:disabled):hover {
+    border-color: var(--line-bright);
+    background: #20262f;
+  }
+
+  /* Tertiary — text-weight, low emphasis. */
+  .btn-quiet {
+    background: transparent;
+    color: var(--muted);
+    border-color: var(--line);
+  }
+  .btn-quiet:not(:disabled):hover {
+    color: var(--chalk);
+    border-color: var(--line-bright);
+  }
+
+  /* Round icon button (transport controls). */
+  .btn-icon {
+    width: 3.25rem;
+    height: 3.25rem;
+    border-radius: 999px;
+    padding: 0;
+    font-size: 1.05rem;
+  }
+
+  /* Chip toggle (playback speed). */
+  .chip {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 0.85rem;
+    letter-spacing: 0.02em;
+    color: var(--chalk);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 0.95rem;
+    height: 2.6rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+  }
+  .chip:active {
+    transform: scale(0.97);
+  }
+
+  /* Range slider — thin track, amber thumb, like a precision dial. */
+  input[type='range'] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 2rem;
+    background: transparent;
+    cursor: pointer;
+  }
+  input[type='range']::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--line-bright);
+  }
+  input[type='range']::-moz-range-track {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--line-bright);
+  }
+  input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    margin-top: -8px;
+    border-radius: 999px;
+    background: var(--amber);
+    border: 2px solid #1a130a;
+    box-shadow: 0 2px 8px -2px rgba(255, 176, 32, 0.8);
+  }
+  input[type='range']::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--amber);
+    border: 2px solid #1a130a;
+  }
+  input[type='range']:focus-visible {
+    outline: none;
+  }
+  input[type='range']:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px rgba(255, 176, 32, 0.3);
+  }
+
+  /* Deviation gauge — the signature: a plumb centerline with left/right drift. */
+  .gauge {
+    position: relative;
+    height: 38px;
+    border-radius: 0.5rem;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .gauge-center {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    transform: translateX(-1px);
+    background: rgba(255, 176, 32, 0.7);
+  }
+  .gauge-fill {
+    position: absolute;
+    top: 50%;
+    height: 8px;
+    transform: translateY(-50%);
+    background: linear-gradient(90deg, rgba(34, 255, 85, 0.15), rgba(34, 255, 85, 0.55));
+  }
+  .gauge-fill.left {
+    right: 50%;
+    border-radius: 4px 0 0 4px;
+    background: linear-gradient(270deg, rgba(34, 255, 85, 0.15), rgba(34, 255, 85, 0.55));
+  }
+  .gauge-fill.right {
+    left: 50%;
+    border-radius: 0 4px 4px 0;
+  }
+}
+
+/* Accessibility: honor reduced-motion and always show keyboard focus. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+.btn:focus-visible,
+.chip:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/* Page-load reveal (skipped under reduced-motion via the rule above). */
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.rise {
+  animation: riseIn 0.4s ease both;
+}

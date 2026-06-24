@@ -3,22 +3,25 @@ import type { App } from '../app'
 export function renderSetPoint(app: App, root: HTMLElement): void {
   const video = app.data.videoEl!
   root.innerHTML = `
-    <div class="min-h-screen flex flex-col gap-3 p-3">
-      <p id="hint" class="text-sm text-center text-neutral-200 min-h-[2.5rem] flex items-center justify-center">
+    <div class="min-h-screen flex flex-col gap-3 p-4 max-w-md mx-auto w-full rise">
+      <div class="text-center">
+        <p class="eyebrow">Step 1 — Mark the bar</p>
+      </div>
+      <p id="hint" class="text-sm text-center text-[var(--muted)] min-h-[2.5rem] flex items-center justify-center leading-relaxed">
         Scrub to the start of your lift, then tap the weight plate to track it.
       </p>
-      <div id="stage" class="relative w-fit mx-auto"></div>
-      <input id="scrub" type="range" min="0" max="1000" value="0" class="w-full" />
-      <div class="flex flex-wrap gap-2 justify-center text-sm">
-        <button id="setend" class="px-3 py-2 rounded bg-neutral-700">Set end here</button>
-        <button id="reset" class="px-3 py-2 rounded bg-neutral-800 text-neutral-400">Reset</button>
-        <button id="track" disabled class="px-4 py-2 rounded bg-blue-600 disabled:opacity-40">Track</button>
+      <div id="stage" class="frame"></div>
+      <input id="scrub" type="range" min="0" max="1000" value="0" />
+      <div class="flex gap-2">
+        <button id="setend" class="btn btn-ghost flex-1 text-sm">Set end here</button>
+        <button id="reset" class="btn btn-quiet text-sm">Reset</button>
       </div>
-      <p id="trim" class="text-xs text-center text-neutral-500"></p>
+      <button id="track" disabled class="btn btn-amber w-full">Track the bar path</button>
+      <p id="trim" class="readout text-xs text-center text-[var(--faint)]"></p>
     </div>`
 
   const stage = root.querySelector<HTMLDivElement>('#stage')!
-  video.className = 'max-h-[58vh] w-auto block rounded-lg'
+  video.className = 'max-h-[56vh] w-auto block'
   stage.appendChild(video)
   const canvas = document.createElement('canvas')
   canvas.className = 'absolute inset-0 w-full h-full touch-none'

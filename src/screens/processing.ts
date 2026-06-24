@@ -7,22 +7,23 @@ import { smoothPath, type PathPoint } from '../geometry'
 export function renderProcessing(app: App, root: HTMLElement): void {
   const video = app.data.videoEl!
   root.innerHTML = `
-    <div class="min-h-screen flex flex-col items-center justify-center gap-4 p-3">
-      <div id="stage" class="relative w-fit mx-auto">
-        <div id="retap" class="hidden absolute inset-0 bg-black/40 flex-col items-center justify-center gap-2 p-4 z-10">
-          <p class="text-amber-400 text-center font-medium">Lost the bar — tap it again.</p>
+    <div class="min-h-screen flex flex-col items-center justify-center gap-5 p-4">
+      <p class="eyebrow">Step 2 — Tracking the bar</p>
+      <div id="stage" class="frame">
+        <div id="retap" class="hidden absolute inset-0 bg-black/55 backdrop-blur-sm flex-col items-center justify-center gap-2 p-4 z-10">
+          <p class="text-[var(--amber)] text-center font-medium">Lost the bar — tap it again.</p>
         </div>
       </div>
-      <div class="w-64 h-2 bg-neutral-800 rounded-full overflow-hidden">
-        <div id="bar" class="h-full bg-blue-600" style="width:0%"></div>
+      <div class="w-64 h-1.5 bg-[var(--surface-2)] rounded-full overflow-hidden border border-[var(--line)]">
+        <div id="bar" class="h-full bg-[var(--amber)] transition-[width] duration-150" style="width:0%"></div>
       </div>
-      <p id="pct" class="text-sm text-neutral-500">Tracking… 0%</p>
+      <p id="pct" class="readout text-sm text-[var(--muted)]">Tracking… 0%</p>
     </div>`
 
   // Mount the persistent video (visible + playing) so iOS decodes frames that
   // the capture loop's drawImage can read.
   const stage = root.querySelector<HTMLDivElement>('#stage')!
-  video.className = 'max-h-[60vh] w-auto block rounded-lg'
+  video.className = 'max-h-[60vh] w-auto block'
   stage.insertBefore(video, stage.firstChild)
   // transparent canvas over the video to capture the re-tap coordinate
   const tapCanvas = document.createElement('canvas')
@@ -85,7 +86,7 @@ export function renderProcessing(app: App, root: HTMLElement): void {
   }
   run().catch((err) => {
     root.innerHTML = `<div class="min-h-screen grid place-items-center p-6 text-center">
-      <div><p class="text-red-400 mb-2">Tracking failed.</p>
-      <p class="text-sm text-neutral-500">${String(err)}</p></div></div>`
+      <div><p class="text-[var(--mark)] mb-2 font-medium">Tracking failed.</p>
+      <p class="readout text-sm text-[var(--faint)]">${String(err)}</p></div></div>`
   })
 }

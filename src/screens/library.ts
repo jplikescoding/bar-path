@@ -35,10 +35,13 @@ async function reopen(app: App, saved: SavedAnalysis): Promise<void> {
 
 export function renderLibrary(app: App, root: HTMLElement): void {
   root.innerHTML = `
-    <div class="min-h-screen flex flex-col gap-3 p-4">
-      <div class="flex items-center justify-between">
-        <h1 class="text-xl font-semibold">Saved lifts</h1>
-        <button id="new" class="px-3 py-2 rounded bg-blue-600 text-sm">New video</button>
+    <div class="min-h-screen flex flex-col gap-4 p-4 max-w-md mx-auto w-full rise">
+      <div class="flex items-end justify-between">
+        <div class="flex flex-col gap-1">
+          <span class="eyebrow">Library</span>
+          <h1 class="text-2xl font-bold leading-none">Saved lifts</h1>
+        </div>
+        <button id="new" class="btn btn-amber text-sm">New video</button>
       </div>
       <div id="list" class="flex flex-col gap-2"></div>
     </div>`
@@ -50,9 +53,13 @@ export function renderLibrary(app: App, root: HTMLElement): void {
     const items = await listAnalyses()
     if (items.length === 0) {
       list.innerHTML = `
-        <div class="text-center text-neutral-400 py-16 flex flex-col items-center gap-4">
-          <p>No saved lifts yet.</p>
-          <button id="upload" class="px-6 py-3 rounded-xl bg-blue-600">Upload a video</button>
+        <div class="card text-center text-[var(--muted)] py-16 px-6 flex flex-col items-center gap-4 mt-2">
+          <svg width="40" height="52" viewBox="0 0 86 116" fill="none" aria-hidden="true">
+            <line x1="43" y1="6" x2="43" y2="110" stroke="#ffb020" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round" opacity="0.7" />
+            <path d="M43 108 C 30 92, 24 74, 33 56 C 40 42, 58 34, 50 20 C 46 13, 43 10, 43 8" stroke="#22ff55" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.7" />
+          </svg>
+          <p class="text-sm">No saved lifts yet. Track a lift and tap <span class="text-[var(--chalk)]">Save</span> to keep it here.</p>
+          <button id="upload" class="btn btn-amber">Upload a video</button>
         </div>`
       list.querySelector('#upload')!.addEventListener('click', () => app.go('upload'))
       return
@@ -61,14 +68,14 @@ export function renderLibrary(app: App, root: HTMLElement): void {
     list.innerHTML = ''
     for (const item of items) {
       const row = document.createElement('div')
-      row.className = 'flex items-center gap-3 p-2 rounded-lg bg-neutral-800 active:bg-neutral-700'
+      row.className = 'card flex items-center gap-3 p-2.5 active:bg-[var(--surface-2)] transition-colors'
       row.innerHTML = `
-        <img src="${item.thumbnail}" alt="" class="w-16 h-16 object-cover rounded bg-neutral-900 shrink-0" />
+        <img src="${item.thumbnail}" alt="" class="w-16 h-16 object-cover rounded-lg bg-black shrink-0 border border-[var(--line)]" />
         <button class="open flex-1 text-left min-w-0">
-          <div class="truncate">${item.name || defaultName(item.createdAt)}</div>
-          <div class="text-sm text-neutral-400">${driftSubtitle(item.driftRange)}</div>
+          <div class="truncate font-medium" style="font-family:var(--font-display)">${item.name || defaultName(item.createdAt)}</div>
+          <div class="readout text-xs text-[var(--muted)] mt-1">${driftSubtitle(item.driftRange)}</div>
         </button>
-        <button class="del w-10 h-10 rounded bg-neutral-700 active:bg-red-700 shrink-0" aria-label="Delete">✕</button>`
+        <button class="del w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--mark)] active:text-white shrink-0" aria-label="Delete">✕</button>`
 
       row.querySelector('.open')!.addEventListener('click', async () => {
         const saved = await getAnalysis(item.id)

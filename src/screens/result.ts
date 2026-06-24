@@ -14,30 +14,55 @@ export function renderResult(app: App, root: HTMLElement): void {
   const startT = app.data.startTime
   const endT = Math.max(startT + 0.1, path[path.length - 1]?.t ?? app.data.endTime ?? video.duration)
 
+  // Deviation gauge geometry: scale each side against the larger of the two so
+  // the worse direction fills its half of the track.
+  const maxAbs = Math.max(drift.maxLeft, drift.maxRight, 1)
+  const leftW = (drift.maxLeft / maxAbs) * 50
+  const rightW = (drift.maxRight / maxAbs) * 50
+
   root.innerHTML = `
-    <div class="min-h-screen flex flex-col gap-3 p-3">
-      <div id="stage" class="relative w-fit mx-auto"></div>
+    <div class="min-h-screen flex flex-col gap-3 p-4 max-w-md mx-auto w-full rise">
+      <div class="text-center">
+        <p class="eyebrow">Step 3 — Review</p>
+      </div>
+      <div id="stage" class="frame"></div>
+
       <div class="flex items-center gap-3 justify-center">
-        <button id="play" class="w-14 h-11 rounded bg-blue-600 text-lg">▶</button>
-        <button id="speed" class="px-3 h-11 rounded bg-neutral-700 text-sm">🐢 1×</button>
+        <button id="play" class="btn btn-amber btn-icon" aria-label="Play">▶</button>
+        <button id="speed" class="chip" aria-label="Playback speed">1×</button>
       </div>
-      <input id="scrub" type="range" min="0" max="1000" value="1000" class="w-full" />
-      <div class="text-center text-sm text-neutral-300">
-        Horizontal drift — left <span class="text-neutral-100">${drift.maxLeft.toFixed(0)}px</span>,
-        right <span class="text-neutral-100">${drift.maxRight.toFixed(0)}px</span>,
-        total <span class="text-neutral-100">${drift.range.toFixed(0)}px</span>
-        ${app.data.verticalAngleRad != null ? '<span class="text-cyan-400">(tilt-corrected)</span>' : ''}
+      <input id="scrub" type="range" min="0" max="1000" value="1000" />
+
+      <div class="card p-4 flex flex-col gap-3">
+        <div class="flex items-end justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="eyebrow">Drift from plumb</span>
+            <span class="readout text-3xl font-semibold leading-none">${drift.range.toFixed(0)}<span class="text-base text-[var(--muted)] ml-0.5">px</span></span>
+          </div>
+          ${app.data.verticalAngleRad != null ? '<span class="eyebrow text-[var(--amber)]">Tilt-corrected</span>' : ''}
+        </div>
+        <div class="gauge">
+          <div class="gauge-fill left" style="width:${leftW}%"></div>
+          <div class="gauge-fill right" style="width:${rightW}%"></div>
+          <div class="gauge-center"></div>
+        </div>
+        <div class="flex justify-between readout text-xs text-[var(--muted)]">
+          <span>◀ left ${drift.maxLeft.toFixed(0)}px</span>
+          <span>plumb</span>
+          <span>right ${drift.maxRight.toFixed(0)}px ▶</span>
+        </div>
       </div>
-      <div class="flex gap-2 justify-center flex-wrap">
-        <button id="save" class="px-4 py-2 rounded bg-blue-600">Save</button>
-        <button id="export" class="px-4 py-2 rounded bg-green-600">Export video</button>
-        <button id="new" class="px-4 py-2 rounded bg-neutral-700">New video</button>
+
+      <div class="flex gap-2">
+        <button id="save" class="btn btn-amber flex-1">Save</button>
+        <button id="export" class="btn btn-ghost flex-1">Export</button>
+        <button id="new" class="btn btn-quiet">New</button>
       </div>
-      <div id="saved-msg" class="text-center text-sm text-green-400 h-5"></div>
+      <div id="saved-msg" class="text-center text-sm text-[var(--amber)] h-5"></div>
     </div>`
 
   const stage = root.querySelector<HTMLDivElement>('#stage')!
-  video.className = 'max-h-[58vh] w-auto block rounded-lg'
+  video.className = 'max-h-[54vh] w-auto block'
   stage.appendChild(video)
   const canvas = document.createElement('canvas')
   canvas.className = 'absolute inset-0 w-full h-full pointer-events-none'
@@ -74,7 +99,7 @@ export function renderResult(app: App, root: HTMLElement): void {
   playBtn.addEventListener('click', () => { video.paused ? play() : pause() })
   speedBtn.addEventListener('click', () => {
     speedIdx = (speedIdx + 1) % speeds.length
-    speedBtn.textContent = `🐢 ${speeds[speedIdx]}×`
+    speedBtn.textContent = `${speeds[speedIdx]}×`
     if (!video.paused) video.playbackRate = speeds[speedIdx]
   })
   scrub.addEventListener('input', () => {
