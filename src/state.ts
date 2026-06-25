@@ -13,6 +13,10 @@ export interface AppData {
   // id of the persisted analysis when the result screen is showing a saved lift
   // (reopened from the library, or just saved). null = a fresh, unsaved track.
   savedId: string | null
+  // diameter (in video pixels) of the bar plate, captured by the optional
+  // drag-to-rim gesture on the setup screen. Lets drift read in cm (a 45 cm
+  // plate is the ruler). null = not calibrated → drift stays in pixels.
+  plateDiameterPx: number | null
 }
 
 export function initialData(): AppData {
@@ -25,5 +29,6 @@ export function initialData(): AppData {
     endTime: null,
     path: [],
     savedId: null,
+    plateDiameterPx: null,
   }
 }

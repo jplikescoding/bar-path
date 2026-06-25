@@ -1,6 +1,6 @@
 import type { App } from '../app'
 import { drawReview } from '../overlay'
-import { rotatePath, horizontalDrift, type PathPoint } from '../geometry'
+import { rotatePath, horizontalDrift, pxToCm, type PathPoint } from '../geometry'
 import { saveAnalysis, deleteAnalysis } from '../library'
 import { defaultName, type SavedAnalysis } from '../librarySupport'
 
@@ -19,6 +19,12 @@ export function renderResult(app: App, root: HTMLElement): void {
   const maxAbs = Math.max(drift.maxLeft, drift.maxRight, 1)
   const leftW = (drift.maxLeft / maxAbs) * 50
   const rightW = (drift.maxRight / maxAbs) * 50
+
+  // If the user sized a plate on setup, show drift in real centimeters; else px.
+  const plateDiameterPx = app.data.plateDiameterPx
+  const calibrated = plateDiameterPx != null && plateDiameterPx > 0
+  const unit = calibrated ? 'cm' : 'px'
+  const fmt = (px: number) => calibrated ? pxToCm(px, plateDiameterPx!).toFixed(1) : px.toFixed(0)
 
   root.innerHTML = `
     <div class="min-h-screen flex flex-col gap-3 p-4 max-w-md mx-auto w-full rise">
@@ -41,13 +47,15 @@ export function renderResult(app: App, root: HTMLElement): void {
               Side-to-side travel
               <button id="drift-info" class="w-4 h-4 leading-none rounded-full text-[var(--faint)] active:text-[var(--amber)]" aria-label="What does this mean?" aria-expanded="false">ⓘ</button>
             </span>
-            <span class="readout text-3xl font-semibold leading-none">${drift.range.toFixed(0)}<span class="text-base text-[var(--muted)] ml-0.5">px</span></span>
+            <span class="readout text-3xl font-semibold leading-none">${fmt(drift.range)}<span class="text-base text-[var(--muted)] ml-0.5">${unit}</span></span>
             <span class="text-xs text-[var(--muted)]">lower number = straighter path</span>
           </div>
           ${app.data.verticalAngleRad != null ? '<span class="eyebrow text-[var(--amber)]">Tilt-corrected</span>' : ''}
         </div>
         <div id="drift-explain" class="hidden text-xs text-[var(--muted)] leading-relaxed border-t border-[var(--line)] pt-3">
-          The widest the bar drifted sideways — the gap between its <span class="text-[var(--chalk)]">farthest-left</span> and <span class="text-[var(--chalk)]">farthest-right</span> point over the whole rep (the extremes, not an average). That's the <span class="text-[var(--chalk)]">left + right</span> distances below, measured from the amber plumb line where the bar started. Units are video pixels, so compare it across your own reps rather than reading it as inches.
+          The widest the bar drifted sideways — the gap between its <span class="text-[var(--chalk)]">farthest-left</span> and <span class="text-[var(--chalk)]">farthest-right</span> point over the whole rep (the extremes, not an average). That's the <span class="text-[var(--chalk)]">left + right</span> distances below, measured from the amber plumb line where the bar started. ${calibrated
+            ? 'Shown in <span class="text-[var(--chalk)]">centimeters</span> using the plate you sized as a 45 cm ruler — real-world travel.'
+            : 'Units are video pixels. <span class="text-[var(--chalk)]">Size a plate on the setup screen</span> to read this in cm.'}
         </div>
         <div class="gauge">
           <div class="gauge-fill left" style="width:${leftW}%"></div>
@@ -55,9 +63,9 @@ export function renderResult(app: App, root: HTMLElement): void {
           <div class="gauge-center"></div>
         </div>
         <div class="flex justify-between readout text-xs text-[var(--muted)]">
-          <span>◀ left ${drift.maxLeft.toFixed(0)}px</span>
+          <span>◀ left ${fmt(drift.maxLeft)}${unit}</span>
           <span>plumb</span>
-          <span>right ${drift.maxRight.toFixed(0)}px ▶</span>
+          <span>right ${fmt(drift.maxRight)}${unit} ▶</span>
         </div>
       </div>
 
@@ -182,6 +190,7 @@ export function renderResult(app: App, root: HTMLElement): void {
       path: app.data.path,
       thumbnail: makeThumbnail(),
       driftRange: drift.range,
+      plateDiameterPx: app.data.plateDiameterPx,
     }
     await saveAnalysis(record)
     app.data.savedId = record.id

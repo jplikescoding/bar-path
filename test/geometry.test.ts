@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { smoothPath, angleFromVertical, rotatePath, horizontalDrift } from '../src/geometry'
+import { smoothPath, angleFromVertical, rotatePath, horizontalDrift, pxToCm, PLATE_DIAMETER_CM } from '../src/geometry'
 
 describe('smoothPath', () => {
   it('returns a copy when window <= 1', () => {
@@ -52,5 +52,15 @@ describe('horizontalDrift', () => {
     expect(d.maxLeft).toBe(0)
     expect(d.maxRight).toBeCloseTo(8)
     expect(d.range).toBeCloseTo(6)
+  })
+})
+
+describe('pxToCm', () => {
+  it('a full plate-diameter of pixels equals the plate diameter in cm', () => {
+    expect(pxToCm(200, 200)).toBeCloseTo(PLATE_DIAMETER_CM)
+  })
+  it('scales linearly against the plate pixel diameter', () => {
+    // plate is 200px wide → 45cm; a 100px drift is half a plate = 22.5cm
+    expect(pxToCm(100, 200)).toBeCloseTo(22.5)
   })
 })

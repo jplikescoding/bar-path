@@ -37,6 +37,16 @@ export function rotatePath(
   })
 }
 
+// Standard Olympic / bumper plate face diameter (450 mm). Used as the on-screen
+// ruler to convert pixel distances to centimeters when the user has sized a plate.
+export const PLATE_DIAMETER_CM = 45
+
+// Convert a pixel distance to centimeters given the bar plate's pixel diameter.
+// Only valid in the plate's depth plane (a side-on clip where the plate faces the camera).
+export function pxToCm(px: number, plateDiameterPx: number): number {
+  return px * (PLATE_DIAMETER_CM / plateDiameterPx)
+}
+
 export interface Drift { refX: number; maxLeft: number; maxRight: number; range: number }
 
 export function horizontalDrift(pts: PathPoint[], refX: number): Drift {

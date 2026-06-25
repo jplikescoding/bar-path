@@ -1,4 +1,4 @@
-import type { PathPoint } from './geometry'
+import { pxToCm, type PathPoint } from './geometry'
 
 // A persisted, completed bar-path analysis. Mirrors AppData plus the bits we need
 // to render a library list (name/date/thumbnail/drift) and to reopen later.
@@ -14,6 +14,7 @@ export interface SavedAnalysis {
   path: PathPoint[]
   thumbnail: string // data: URL JPEG
   driftRange: number
+  plateDiameterPx?: number | null // bar-plate diameter in px; enables cm readout. Optional: older records lack it.
 }
 
 const MONTHS = [
@@ -40,7 +41,10 @@ export function sortByNewest(list: SavedAnalysis[]): SavedAnalysis[] {
   return list.slice().sort((a, b) => b.createdAt - a.createdAt)
 }
 
-// e.g. "drift 95px". Rounds to a whole pixel.
-export function driftSubtitle(range: number): string {
+// e.g. "drift 95px", or "drift 8.4cm" when the lift was plate-calibrated.
+export function driftSubtitle(range: number, plateDiameterPx?: number | null): string {
+  if (plateDiameterPx) {
+    return `drift ${pxToCm(range, plateDiameterPx).toFixed(1)}cm`
+  }
   return `drift ${Math.round(range)}px`
 }

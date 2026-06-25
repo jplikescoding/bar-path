@@ -1,17 +1,23 @@
 # Bar Path Tracker — Handoff / Status
 
-Last updated: 2026-06-24 (review-screen polish shipped; body-analysis exploration in PR #3).
+Last updated: 2026-06-25 (Phase 0 cm-drift shipped; next = average metric + body cues).
 
 ## ►► START HERE next session
-Two threads are live:
-1. **Read PR #3** — `docs/body-analysis-exploration.md` (branch `docs/body-analysis-exploration`):
-   the overnight feasibility/design report on pose tracking + body-type-aware coaching.
-   **Verdict: GO, reduced scope** — ship a *side-on deadlift* coach first, NOT the squat
-   (squat is filmed end-on, so depth/lean/midfoot live on the invisible axis). Recommended
-   first build = **Phase 0: "bar drifted N cm off midfoot"** cue — no pose needed, extends
-   existing `geometry.horizontalDrift` + a 450 mm plate for px→cm scale. Read it, then decide
-   merge + which phase to build.
-2. **Device-test the polish round** (already on master/live) — see DONE list below.
+Body-analysis design report is merged at `docs/body-analysis-exploration.md` (PR #3) —
+**Verdict: GO, reduced scope** (side-on deadlift first, NOT end-on squat). **Phase 0 is DONE
+and shipped** (see below). Next two, in order:
+1. **Average drift metric** (JP wants it) — today the result shows *peak* travel (extremes,
+   in cm when calibrated). Add **average** horizontal deviation from plumb (mean |x−refX|),
+   shown alongside peak (toggle or second readout). Extend `geometry.horizontalDrift` to also
+   return a `mean`. Small (~½ day). Backlog #6.
+2. **Body cues (Phase 1 of the report)** — pose tracking to tell the lifter *where* form
+   broke / what to fix. This is the big one: add `pose.ts` (lazy MediaPipe, like `opencv.ts`)
+   + `coach.ts` (pure, like `geometry.ts`). See report §5–§7 for the file-level plan and the
+   hard guardrails (body type only *widens tolerances*, never emits prescriptive verdicts;
+   never claim spine/3D from 2D). Start with the deadlift bar-off-midfoot + early-hip-rise cues.
+
+Also still pending: **device-test** the polish round + Phase 0 calibration on a real side-on
+deadlift clip.
 
 ## What this is
 A fully **client-side** web app that tracks a barbell's bar path in a lifting video
@@ -92,10 +98,25 @@ tracking/export logic. 17/17 tests, build green.
 - **Device-test checklist (JP):** hear audio, name + rename a lift, reopen → Back/Delete work,
   toggle the ⓘ explainer.
 
-## Body analysis exploration → PR #3 (open, NOT merged)
-Overnight remote-agent research. Report at `docs/body-analysis-exploration.md` (branch
-`docs/body-analysis-exploration`, ~5.7k words, doc-only — no app code). See "START HERE"
-at the top of this file for the verdict + recommended first build. Key pose finding:
+## DONE: Phase 0 — cm bar-drift (master, 2026-06-25)
+First slice of the body-analysis roadmap. Drift now reads in **real centimeters** when the
+user sizes a plate. No pose yet. 19/19 tests, build green. Files: `geometry.ts` (+`pxToCm`,
+`PLATE_DIAMETER_CM=45`, tested), `state.ts`/`librarySupport.ts` (+`plateDiameterPx`),
+`setpoint.ts`, `result.ts`, `library.ts`.
+- **Scale capture = option 2 + optional drag:** on setup, tap the bar plate as before
+  (tracking unchanged); *optionally* drag from there to the plate's rim → captures the plate
+  pixel diameter (amber dashed circle), "Scale set ✓". Plain tap = today's behavior, px.
+- **cm everywhere when calibrated:** result headline + L/R + library subtitle switch px→cm;
+  explainer updates. Saved lifts persist `plateDiameterPx`; old/uncalibrated lifts stay px.
+- **Metric unchanged:** still peak extremes (`horizontalDrift` range/left/right), just unit-
+  converted via `pxToCm(px, plateDiameterPx)` with a 45 cm plate ruler.
+- **Assumption:** ruler = 45 cm (standard/bumper plate). Smaller iron plates would mis-scale;
+  a plate-size picker is a possible later add.
+- **Device-test (JP):** size a plate on a real side-on deadlift clip → sensible cm drift.
+
+## Body analysis exploration → PR #3 (MERGED)
+Overnight remote-agent research. Report at `docs/body-analysis-exploration.md`
+(~5.7k words, doc-only). See "START HERE" at the top for the verdict + roadmap. Key pose finding:
 **MediaPipe Tasks Vision "Pose Landmarker"** runs on iOS Safari with NO SharedArrayBuffer
 (single-thread WASM + WebGL), Apache-2.0, ~6–9 MB on top of OpenCV, ~15 FPS mid-iPhone;
 fallback TF.js MoveNet Lightning. Hard rule the report sets: body type only *widens
@@ -122,9 +143,9 @@ the plumb-line-vs-drifting-path glyph and the result screen's drift-from-plumb g
    real loading/skeleton state, transitions between screens, a velocity graph.
 3. **Saved library** — DONE (merged).
 4. **v2: body/pose tracking** + toggleable on/off **analysis cues** during the rep showing
-   *where* form broke down (JP's idea). **Now scoped in PR #3** — see "START HERE": GO for a
-   side-on deadlift coach, Phase 0 = cm bar-drift cue (no pose). Squat needs a side-on
-   filming prompt first (backlog #1).
+   *where* form broke down (JP's idea). Scoped in PR #3; **Phase 0 (cm drift) DONE**. Next is
+   the average metric (#6), then pose cues (Phase 1 — see "START HERE"). Squat coaching still
+   needs a side-on filming prompt first (backlog #1).
 5. Possible later: velocity graph synced to playback (like one reference app), draw tools.
 6. **Drift metric: average option** — the result screen shows *peak* side-to-side travel
    (extremes: farthest-left↔farthest-right = `left + right`). JP wants an **average**
