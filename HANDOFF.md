@@ -86,6 +86,11 @@ the plumb-line-vs-drifting-path glyph and the result screen's drift-from-plumb g
 4. **v2: body/pose tracking** + toggleable on/off **analysis cues** during the rep showing
    *where* form broke down (JP's idea; needs body tracking behind it).
 5. Possible later: velocity graph synced to playback (like one reference app), draw tools.
+6. **Drift metric: average option** — the result screen shows *peak* side-to-side travel
+   (extremes: farthest-left↔farthest-right = `left + right`). JP wants an **average**
+   deviation too (mean horizontal distance from plumb), likely as a toggle between
+   peak/average rather than replacing peak. `geometry.horizontalDrift` would gain a
+   mean field. Deferred 2026-06-24.
 
 ## Reference apps JP wants to emulate
 Iron Path (saved-clip library + play/slow-mo) and a richer one (scrubber + slow-mo + velocity

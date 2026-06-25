@@ -10,6 +10,9 @@ export interface AppData {
   startTime: number
   endTime: number | null
   path: PathPoint[]
+  // id of the persisted analysis when the result screen is showing a saved lift
+  // (reopened from the library, or just saved). null = a fresh, unsaved track.
+  savedId: string | null
 }
 
 export function initialData(): AppData {
@@ -21,5 +24,6 @@ export function initialData(): AppData {
     startTime: 0,
     endTime: null,
     path: [],
+    savedId: null,
   }
 }
