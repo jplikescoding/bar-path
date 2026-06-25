@@ -47,13 +47,17 @@ export function renderResult(app: App, root: HTMLElement): void {
               Side-to-side travel
               <button id="drift-info" class="w-4 h-4 leading-none rounded-full text-[var(--faint)] active:text-[var(--amber)]" aria-label="What does this mean?" aria-expanded="false">ⓘ</button>
             </span>
-            <span class="readout text-3xl font-semibold leading-none">${fmt(drift.range)}<span class="text-base text-[var(--muted)] ml-0.5">${unit}</span></span>
+            <div class="flex items-baseline gap-2">
+              <span class="readout text-3xl font-semibold leading-none">${fmt(drift.range)}<span class="text-base text-[var(--muted)] ml-0.5">${unit}</span></span>
+              <span class="eyebrow text-[var(--faint)]">peak</span>
+            </div>
+            <span class="readout text-sm text-[var(--muted)]">avg ${fmt(drift.meanAbs)}${unit} from plumb</span>
             <span class="text-xs text-[var(--muted)]">lower number = straighter path</span>
           </div>
           ${app.data.verticalAngleRad != null ? '<span class="eyebrow text-[var(--amber)]">Tilt-corrected</span>' : ''}
         </div>
         <div id="drift-explain" class="hidden text-xs text-[var(--muted)] leading-relaxed border-t border-[var(--line)] pt-3">
-          The widest the bar drifted sideways — the gap between its <span class="text-[var(--chalk)]">farthest-left</span> and <span class="text-[var(--chalk)]">farthest-right</span> point over the whole rep (the extremes, not an average). That's the <span class="text-[var(--chalk)]">left + right</span> distances below, measured from the amber plumb line where the bar started. ${calibrated
+          <span class="text-[var(--chalk)]">Peak</span> is the widest the bar drifted sideways — the gap between its farthest-left and farthest-right point (the <span class="text-[var(--chalk)]">left + right</span> distances below), measured from the amber plumb line where the bar started. <span class="text-[var(--chalk)]">Avg</span> is the typical distance from that plumb line across the whole rep — a smoother measure than the single widest moment. ${calibrated
             ? 'Shown in <span class="text-[var(--chalk)]">centimeters</span> using the plate you sized as a 45 cm ruler — real-world travel.'
             : 'Units are video pixels. <span class="text-[var(--chalk)]">Size a plate on the setup screen</span> to read this in cm.'}
         </div>

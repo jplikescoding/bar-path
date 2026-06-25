@@ -4,20 +4,18 @@ Last updated: 2026-06-25 (Phase 0 cm-drift shipped; next = average metric + body
 
 ## ►► START HERE next session
 Body-analysis design report is merged at `docs/body-analysis-exploration.md` (PR #3) —
-**Verdict: GO, reduced scope** (side-on deadlift first, NOT end-on squat). **Phase 0 is DONE
-and shipped** (see below). Next two, in order:
-1. **Average drift metric** (JP wants it) — today the result shows *peak* travel (extremes,
-   in cm when calibrated). Add **average** horizontal deviation from plumb (mean |x−refX|),
-   shown alongside peak (toggle or second readout). Extend `geometry.horizontalDrift` to also
-   return a `mean`. Small (~½ day). Backlog #6.
-2. **Body cues (Phase 1 of the report)** — pose tracking to tell the lifter *where* form
-   broke / what to fix. This is the big one: add `pose.ts` (lazy MediaPipe, like `opencv.ts`)
-   + `coach.ts` (pure, like `geometry.ts`). See report §5–§7 for the file-level plan and the
-   hard guardrails (body type only *widens tolerances*, never emits prescriptive verdicts;
-   never claim spine/3D from 2D). Start with the deadlift bar-off-midfoot + early-hip-rise cues.
+**Verdict: GO, reduced scope** (side-on deadlift first, NOT end-on squat). **Phase 0 (cm
+drift) + the average metric are DONE and shipped** (see below). Next up:
 
-Also still pending: **device-test** the polish round + Phase 0 calibration on a real side-on
-deadlift clip.
+**Body cues (Phase 1 of the report)** — pose tracking to tell the lifter *where* form broke /
+what to fix. This is the big one and warrants its own brainstorm/plan. Add `pose.ts` (lazy
+MediaPipe, like `opencv.ts`) + `coach.ts` (pure, like `geometry.ts`). See report §5–§7 for
+the file-level plan and the hard guardrails (body type only *widens tolerances*, never emits
+prescriptive verdicts; never claim spine/3D from 2D). Start with the deadlift bar-off-midfoot
++ early-hip-rise cues.
+
+Also still pending: **device-test** the polish round + Phase 0 cm calibration + the new
+peak/avg readout on a real side-on deadlift clip.
 
 ## What this is
 A fully **client-side** web app that tracks a barbell's bar path in a lifting video
@@ -108,8 +106,10 @@ user sizes a plate. No pose yet. 19/19 tests, build green. Files: `geometry.ts` 
   pixel diameter (amber dashed circle), "Scale set ✓". Plain tap = today's behavior, px.
 - **cm everywhere when calibrated:** result headline + L/R + library subtitle switch px→cm;
   explainer updates. Saved lifts persist `plateDiameterPx`; old/uncalibrated lifts stay px.
-- **Metric unchanged:** still peak extremes (`horizontalDrift` range/left/right), just unit-
-  converted via `pxToCm(px, plateDiameterPx)` with a 45 cm plate ruler.
+- **Metric:** peak extremes (`horizontalDrift` range/left/right) unit-converted via
+  `pxToCm(px, plateDiameterPx)` (45 cm plate ruler). **+ Average (2026-06-25):**
+  `horizontalDrift` now also returns `meanAbs` (mean |x−refX| over the rep); result card
+  shows the big number as **peak** plus an **"avg N cm from plumb"** line.
 - **Assumption:** ruler = 45 cm (standard/bumper plate). Smaller iron plates would mis-scale;
   a plate-size picker is a possible later add.
 - **Device-test (JP):** size a plate on a real side-on deadlift clip → sensible cm drift.

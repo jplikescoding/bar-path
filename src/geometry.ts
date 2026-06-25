@@ -47,15 +47,23 @@ export function pxToCm(px: number, plateDiameterPx: number): number {
   return px * (PLATE_DIAMETER_CM / plateDiameterPx)
 }
 
-export interface Drift { refX: number; maxLeft: number; maxRight: number; range: number }
+// `range` is the peak excursion (farthest-left↔farthest-right). `meanAbs` is the
+// average distance from the plumb line across the whole rep — a smoother, more
+// representative measure than the single widest point.
+export interface Drift { refX: number; maxLeft: number; maxRight: number; range: number; meanAbs: number }
 
 export function horizontalDrift(pts: PathPoint[], refX: number): Drift {
-  let minX = Infinity, maxX = -Infinity
-  for (const p of pts) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x }
+  let minX = Infinity, maxX = -Infinity, sumAbs = 0
+  for (const p of pts) {
+    if (p.x < minX) minX = p.x
+    if (p.x > maxX) maxX = p.x
+    sumAbs += Math.abs(p.x - refX)
+  }
   return {
     refX,
     maxLeft: Math.max(0, refX - minX),
     maxRight: Math.max(0, maxX - refX),
     range: maxX - minX,
+    meanAbs: pts.length ? sumAbs / pts.length : 0,
   }
 }
