@@ -4,6 +4,19 @@
 
 ---
 
+> ## ⬛ VERDICT — GO (reduced scope)
+>
+> | | |
+> |---|---|
+> | **Decision** | **GO** — for an on-device, 100%-client-side build, in reduced form. |
+> | **Why (one sentence)** | The pose tech clears the no-SharedArrayBuffer constraint on iPhone Safari (MediaPipe Tasks Vision, WebGL, ~15 FPS, Apache-2.0), and the most reliable 2D fault — bar drift off midfoot — is already half-built from the existing bar path; the squat is *not* viable at the current end-on angle, so scope to the side-on deadlift. |
+> | **Build this ONE feature first** | **Side-on DEADLIFT "bar drifted N cm off midfoot" cue** (INPUT→COMPUTATION→OUTPUT spec in §5.3 / §7 Phase 0–1). It reuses the existing bar path + plate scale, is build-independent (zero mis-coaching risk), and is the highest-confidence 2D fault in the app. |
+> | **Pose pick** | MediaPipe Tasks Vision `@mediapipe/tasks-vision` **v0.10.x**, Pose Landmarker **Lite**. Runs on iPhone Safari with NO SAB: **yes**. ~3 MB runtime + ~3 MB model. ~15 FPS mid iPhone (sourced, not measured here — see §2.2). Fallback: TF.js MoveNet Lightning (2D-only, faster). |
+> | **Do NOT ship** | Squat coaching at the current end-on angle; any lumbar-rounding "safe/unsafe" verdict; any "you can't squat this deep" claim; auto body-type measurement as the silent default. |
+> | **Needs a code spike (UNKNOWN)** | Real FPS + processing-pass duration for Lite vs Full on a specific mid iPhone (12/13/SE-class); whether pose can ride the existing single decode pass or must be a 2nd pass; midfoot-landmark survival under shoes + plate occlusion. |
+
+---
+
 ## 1. Executive summary & recommendation
 
 **Yes — a useful, on-device, body-type-aware coach is shippable, but only in a deliberately reduced form, and the biggest unlock is a camera-angle change, not the pose model.**
@@ -164,9 +177,26 @@ The result screen already has a transparent `<canvas>` over the native `<video>`
 
 This adds no new screen and reuses the scrub/seek/`requestVideoFrameCallback` plumbing verbatim.
 
-### 5.3 The single most valuable MVP cue
+### 5.3 The single most valuable MVP cue — precise spec
 
-**Deadlift: "bar drifted N cm forward off your midline."** It is (a) the most reliably 2D-detectable fault in the whole app, (b) computed from the bar path the app *already produces* — no new joint-angle math required for v1, (c) calibratable to centimeters by the 450 mm plate, and (d) **build-independent**, so it carries zero risk of mis-coaching a long-limbed lifter. It is the perfect first slice: high value, low risk, minimal new code.
+**Deadlift: "bar drifted N cm forward off your midfoot."** The most reliably 2D-detectable fault in the app, computed largely from the bar path it *already produces*, calibratable to centimeters by the 450 mm plate, and **build-independent** (zero risk of mis-coaching a long-limbed lifter). Implementable spec:
+
+- **INPUT (what's tracked):**
+  1. `path: PathPoint[]` — the bar's per-frame (x, y, t), already produced by `tracker.ts` (no new tracking).
+  2. `midfootX` (pixels) — x of the foot/ankle landmark from the pose pass (MediaPipe landmark for the camera-side ankle/heel-toe midpoint). *v1 fallback if pose midfoot is unreliable:* use the plate-tap x at the start frame as the reference line (the app already captures a tap), i.e. degrade to "drift off start line" with no pose dependency.
+  3. `cmPerPx` — from the 450 mm plate: `450 / plateDiameterPx`, where `plateDiameterPx` is measured at the plate tap on a side-on clip.
+- **COMPUTATION (geometry + threshold):**
+  - `driftPx = max over rep of |path[i].x − midfootX|` (the existing `horizontalDrift` already computes left/right extremes against a reference x — reuse it with `refX = midfootX`).
+  - `driftCm = driftPx × cmPerPx`.
+  - Threshold (tunable, build-independent): flag if `driftCm ≥ 5 cm` (≈2 in) — a coaching-meaningful forward drift, well above landmark noise. Record `frameT` of the peak for the scrub tick.
+  - Confidence gate: only emit if the clip is side-on (plate face roughly circular, not edge-on) and the ankle landmark confidence is high across the rep; otherwise stay silent (no false cue).
+- **OUTPUT (exactly what the user sees):**
+  - A single cue card on the result screen, Precision-Instrument style: mono readout **"Bar drifted 6 cm forward off midfoot"** + one encouraging line *"Keeping it over midfoot will feel stronger off the floor."*
+  - An **amber tick on the scrub track** at `frameT`; tapping it seeks to the peak-drift frame.
+  - When the skeleton overlay is on, the **bar-to-midfoot horizontal gap is drawn in amber** at that frame; everything else stays muted chalk.
+  - If the cue can't be computed (end-on clip / low confidence): show nothing, or a quiet *"Film side-on to check bar drift"* — never a wrong number.
+
+It is the perfect first slice: highest 2D confidence, build-independent, minimal new code (mostly reuse of `horizontalDrift` + plate scale), and pose is optional in v1 (plate-tap fallback).
 
 ### 5.4 Tone — encouraging, body-type-aware, never medical
 
