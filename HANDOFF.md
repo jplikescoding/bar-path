@@ -1,6 +1,17 @@
 # Bar Path Tracker — Handoff / Status
 
-Last updated: 2026-06-24 (PRs #1/#2 merged + "Precision Instrument" design pass shipped).
+Last updated: 2026-06-24 (review-screen polish shipped; body-analysis exploration in PR #3).
+
+## ►► START HERE next session
+Two threads are live:
+1. **Read PR #3** — `docs/body-analysis-exploration.md` (branch `docs/body-analysis-exploration`):
+   the overnight feasibility/design report on pose tracking + body-type-aware coaching.
+   **Verdict: GO, reduced scope** — ship a *side-on deadlift* coach first, NOT the squat
+   (squat is filmed end-on, so depth/lean/midfoot live on the invisible axis). Recommended
+   first build = **Phase 0: "bar drifted N cm off midfoot"** cue — no pose needed, extends
+   existing `geometry.horizontalDrift` + a 450 mm plate for px→cm scale. Read it, then decide
+   merge + which phase to build.
+2. **Device-test the polish round** (already on master/live) — see DONE list below.
 
 ## What this is
 A fully **client-side** web app that tracks a barbell's bar path in a lifting video
@@ -64,6 +75,33 @@ build green), and merged 2026-06-24. Both cloud branches are merged.
 - **Device-test checklist (JP):** save a lift → see in library → reopen → delete →
   survives reload; Add to Home Screen → launches standalone; offline reload works.
 
+## DONE: Review-screen polish round (master, 2026-06-24, commit 99cd223)
+Iteration from device testing. Files: `state.ts`, `result.ts`, `library.ts`. No change to
+tracking/export logic. 17/17 tests, build green.
+- **Audio:** speaker toggle on the review screen (`#sound`), default muted; unmutes on play,
+  applies live at any speed.
+- **Naming:** Save opens an inline prefilled name field before persisting; library rows have
+  a per-row ✎ inline rename.
+- **Drift clarity:** relabelled "Drift from plumb" → **"Side-to-side travel"** + caption
+  "lower number = straighter path" + a toggleable ⓘ explainer (peak spread = farthest-left↔
+  farthest-right = `left + right`, not an average; units are video px).
+- **Saved-lift navigation fix:** reopening a saved lift was a dead end. `AppData.savedId`
+  now tracks whether the result is a saved lift; result actions are context-aware —
+  **saved** = Library (back) / Export / Delete; **fresh** = Save / Export / New. Library
+  reopen and post-save both set `savedId`.
+- **Device-test checklist (JP):** hear audio, name + rename a lift, reopen → Back/Delete work,
+  toggle the ⓘ explainer.
+
+## Body analysis exploration → PR #3 (open, NOT merged)
+Overnight remote-agent research. Report at `docs/body-analysis-exploration.md` (branch
+`docs/body-analysis-exploration`, ~5.7k words, doc-only — no app code). See "START HERE"
+at the top of this file for the verdict + recommended first build. Key pose finding:
+**MediaPipe Tasks Vision "Pose Landmarker"** runs on iOS Safari with NO SharedArrayBuffer
+(single-thread WASM + WebGL), Apache-2.0, ~6–9 MB on top of OpenCV, ~15 FPS mid-iPhone;
+fallback TF.js MoveNet Lightning. Hard rule the report sets: body type only *widens
+tolerances*, never *generates verdicts*; never ship spine-rounding "safety" claims or 3D
+joint angles from 2D video.
+
 ## Design: "Precision Instrument" identity (2026-06-24)
 Whole UI reskinned around the measurement-instrument concept. Deep graphite ground
 (`--bg #0b0e11`), chalk text, and **amber `#FFB020`** (from the plumb line) as the
@@ -84,7 +122,9 @@ the plumb-line-vs-drifting-path glyph and the result screen's drift-from-plumb g
    real loading/skeleton state, transitions between screens, a velocity graph.
 3. **Saved library** — DONE (merged).
 4. **v2: body/pose tracking** + toggleable on/off **analysis cues** during the rep showing
-   *where* form broke down (JP's idea; needs body tracking behind it).
+   *where* form broke down (JP's idea). **Now scoped in PR #3** — see "START HERE": GO for a
+   side-on deadlift coach, Phase 0 = cm bar-drift cue (no pose). Squat needs a side-on
+   filming prompt first (backlog #1).
 5. Possible later: velocity graph synced to playback (like one reference app), draw tools.
 6. **Drift metric: average option** — the result screen shows *peak* side-to-side travel
    (extremes: farthest-left↔farthest-right = `left + right`). JP wants an **average**
