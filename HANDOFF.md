@@ -203,6 +203,12 @@ the plumb-line-vs-drifting-path glyph and the result screen's drift-from-plumb g
    (or a clear path from the library screen). (`src/screens/result.ts` `renderActions`, saved branch.)
 3. **Surface the pose work on a good rep** (see Phase 2 UX note above) — clean/uncalibrated reps look
    identical to Phase 0, so the feature feels absent. Threshold should gate tone, not visibility.
+4. **Midfoot estimate is heel-biased** (validated on a real clip, JP 2026-06-29 — cue otherwise
+   landed great, fired 12.8 cm). `midfootXFromFrame` averages ankle+heel+toe landmarks; the ankle
+   sits over the heel, so the line lands slightly behind true midfoot (toward the heel). **Fix:**
+   use the **heel↔toe midpoint, drop the ankle** (`coach.ts` `FOOT_LANDMARKS` / averaging) — shifts
+   the line forward toward the laces and lowers the cm a touch (more accurate). Principled (anatomy,
+   not one-clip overfit); confirm exact weighting across JP's clip library in Phase 2.
 
 ## Backlog / future
 1. **Side-on test** — JP films a set from directly to the side (true forward/back drift; his
