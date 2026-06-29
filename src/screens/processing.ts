@@ -1,7 +1,9 @@
 import type { App } from '../app'
 import { loadOpenCV } from '../opencv'
 import { createTracker } from '../tracker'
-import { playAndProcess } from '../capture'
+import { playAndProcess, playFrames } from '../capture'
+import { loadPose } from '../pose'
+import { midfootXFromFrame, robustMidfoot, analyzeBarDrift } from '../coach'
 import { smoothPath, type PathPoint } from '../geometry'
 
 export function renderProcessing(app: App, root: HTMLElement): void {
@@ -79,6 +81,30 @@ export function renderProcessing(app: App, root: HTMLElement): void {
         barEl.style.width = `${p}%`; pctEl.textContent = `Tracking… ${p}%`
       })
       app.data.path = smoothPath(raw, 5)
+
+      // Pass 2 (pose): a SECOND decode pass — pose alone (~37 ms/frame on iPhone)
+      // won't fit alongside OpenCV in one real-time loop. Strictly additive: any
+      // failure falls back to the plate-tap line (seed.x), then to no cue.
+      try {
+        pctEl.textContent = 'Reading body position…'
+        barEl.style.width = '0%'
+        const pose = await loadPose()
+        const xs: (number | null)[] = []
+        await playFrames(video, start, end, (v, tMs) => {
+          const lm = pose.detect(v, tMs)[0]
+          xs.push(lm ? midfootXFromFrame(lm, v.videoWidth) : null)
+        }, (f) => {
+          const p = Math.round(f * 100)
+          barEl.style.width = `${p}%`; pctEl.textContent = `Reading body position… ${p}%`
+        })
+        app.data.poseMidfoot = robustMidfoot(xs)
+      } catch (err) {
+        console.error('pose pass failed; cue falls back to the plate-tap line', err)
+        app.data.poseMidfoot = null
+      }
+      app.data.cue = analyzeBarDrift(
+        app.data.path, app.data.poseMidfoot, app.data.plateDiameterPx, app.data.seed!.x,
+      )
       app.go('result')
     } finally {
       tracker.delete()
