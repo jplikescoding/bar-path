@@ -1,14 +1,14 @@
-// THROWAWAY SPIKE (branch spike/pose). Lazy MediaPipe Pose Landmarker loader,
-// mirroring src/opencv.ts: nothing loads until loadPose() is first called, so
-// the main app pays zero cost. If Phase 1 ships, vendor these assets same-origin
-// (like public/opencv.js) instead of pulling from CDN.
+// Lazy MediaPipe Pose Landmarker loader, mirroring src/opencv.ts: nothing loads
+// until loadPose() is first called, so the main app pays zero cost. Assets are
+// vendored same-origin under public/mediapipe/ (offline, no third-party CDN).
 
-const VERSION = '0.10.35'
-const BUNDLE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VERSION}/vision_bundle.mjs`
-const WASM = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${VERSION}/wasm`
-// "lite" is the smallest/fastest of the three pose models — right for a feasibility floor.
-const MODEL =
-  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'
+// Vendored same-origin (public/mediapipe/, like public/opencv.js) — offline, no CDN.
+// Resolve against document.baseURI so it works under the GitHub Pages '/bar-path/' subpath.
+const ASSETS = new URL('mediapipe/', document.baseURI)
+const BUNDLE = new URL('vision_bundle.mjs', ASSETS).href
+const WASM = new URL('wasm', ASSETS).href // FilesetResolver wants the wasm DIRECTORY url
+// "lite" pose model — smallest/fastest; the spike validated it at ~14.6 fps on iPhone.
+const MODEL = new URL('pose_landmarker_lite.task', ASSETS).href
 
 // One BlazePose landmark, normalized to the frame (x,y in 0..1; z depth from hips).
 export interface Landmark { x: number; y: number; z: number; visibility?: number }
