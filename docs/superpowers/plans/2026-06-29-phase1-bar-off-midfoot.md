@@ -202,8 +202,12 @@ describe('analyzeBarDrift', () => {
     expect(cue!.confidence).toBe('low')
   })
 
-  it('reports px (driftCm null) when no plate scale is set', () => {
-    const cue = analyzeBarDrift(path, { x: 100, frames: 30, conf: 0.95 }, null, 100)
+  it('stays silent when uncalibrated by default (px drift is not actionable)', () => {
+    expect(analyzeBarDrift(path, { x: 100, frames: 30, conf: 0.95 }, null, 100)).toBeNull()
+  })
+
+  it('reports px (driftCm null) when uncalibrated firing is explicitly opted in', () => {
+    const cue = analyzeBarDrift(path, { x: 100, frames: 30, conf: 0.95 }, null, 100, { flagPx: 5 })
     expect(cue).not.toBeNull()
     expect(cue!.driftCm).toBeNull()
     expect(cue!.driftPx).toBeCloseTo(10)
@@ -296,7 +300,6 @@ export function analyzeBarDrift(
 ): BarDriftCue | null {
   if (!path.length) return null
   const flagCm = opts.flagCm ?? 5
-  const flagPx = opts.flagPx ?? 40 // PLACEHOLDER for uncalibrated clips; tune on device (JP)
   const minConf = opts.minConf ?? 0.5
 
   let refX: number
@@ -318,7 +321,14 @@ export function analyzeBarDrift(
 
   const calibrated = plateDiameterPx != null && plateDiameterPx > 0
   const driftCm = calibrated ? pxToCm(driftPx, plateDiameterPx!) : null
-  const fires = calibrated ? driftCm! >= flagCm : driftPx >= flagPx
+  // Calibrated → flag on cm (the real, actionable threshold). Uncalibrated → stay
+  // SILENT by default (a px drift is resolution-dependent and not actionable); the
+  // UI prompts the user to size a plate. A caller may opt into px firing by passing
+  // opts.flagPx explicitly (keeps the px path testable/usable).
+  let fires: boolean
+  if (calibrated) fires = driftCm! >= flagCm
+  else if (opts.flagPx != null) fires = driftPx >= opts.flagPx
+  else fires = false
   if (!fires) return null
 
   const confidence: BarDriftCue['confidence'] =
@@ -606,7 +616,8 @@ with a wrapped version carrying the tick:
         <span class="readout text-xl font-semibold leading-tight text-[var(--chalk)]">Bar drifted ${cueVal}${cueUnit} off ${cueRef}</span>
         <span class="text-sm text-[var(--muted)]">Keeping it over midfoot will feel stronger off the floor. <span class="text-[var(--amber)]">Tap to see the moment →</span></span>
         ${cue.confidence === 'low' ? '<span class="text-xs text-[var(--faint)]">Measured against your starting line — film square to the side for a midfoot read.</span>' : ''}
-      </button>` : ''}
+      </button>` : (!calibrated ? `
+      <div class="card p-4 text-sm text-[var(--muted)]">Size a plate on the setup screen to check bar drift off midfoot.</div>` : '')}
 ```
 
 (e) Update the `render` function so the marker draws at the peak frame. Replace:
@@ -711,7 +722,7 @@ git commit -m "feat(library): persist bar-off-midfoot cue with saved lifts"
 ## Notes & assumptions (flag to JP)
 
 - **Cue wording softened from the spec's "forward" to neutral "off midfoot."** Direction (forward/back) can't be claimed honestly without knowing which way the lifter faces; deadlift drift is *usually* forward but not always. Detecting facing from heel/toe landmarks is a clean Phase 2 add. If you'd rather keep "forward" (the common case), it's a one-word change in Task 5(d).
-- **`flagPx = 40` for uncalibrated clips is a placeholder.** px thresholds are resolution-dependent and shaky; the real value path is the plate-calibrated 5 cm. Tune `flagPx` on device, or decide uncalibrated clips should stay silent and prompt "size a plate."
+- **Uncalibrated clips stay silent (decided 2026-06-29).** A px drift is resolution-dependent and not actionable, so without a plate scale the cue does not fire — the result screen shows a quiet "Size a plate…" hint instead (never a wrong number). The px firing path stays testable/usable via an explicit `opts.flagPx`. Calibrated clips flag at 5 cm. (Originally the plan defaulted `flagPx=40`; this contradicted the px test and produced an unprincipled always-on threshold, so it was removed.)
 - **The plate-tap fallback measures the same reference (seed.x) as the existing "Side-to-side travel" card.** When pose is unavailable the cue restates that drift with coaching framing + the tick/marker; the copy says "off your starting line," not "off midfoot," to stay honest.
 - **No SW change.** The existing cache-first fetch handler runtime-caches any same-origin asset, so `public/mediapipe/*` is cached on first use automatically. Do not add it to `SHELL` (would bloat install).
 
