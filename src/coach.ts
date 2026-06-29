@@ -66,7 +66,6 @@ export function analyzeBarDrift(
 ): BarDriftCue | null {
   if (!path.length) return null
   const flagCm = opts.flagCm ?? 5
-  const flagPx = opts.flagPx ?? 10 // PLACEHOLDER for uncalibrated clips; tune on device (JP)
   const minConf = opts.minConf ?? 0.5
 
   let refX: number
@@ -88,7 +87,14 @@ export function analyzeBarDrift(
 
   const calibrated = plateDiameterPx != null && plateDiameterPx > 0
   const driftCm = calibrated ? pxToCm(driftPx, plateDiameterPx!) : null
-  const fires = calibrated ? driftCm! >= flagCm : driftPx >= flagPx
+  // Calibrated → flag on cm (the real, actionable threshold). Uncalibrated → stay
+  // SILENT by default (a px drift is resolution-dependent and not actionable); the
+  // UI prompts the user to size a plate. A caller may opt into px firing by passing
+  // opts.flagPx explicitly (keeps the px path testable/usable).
+  let fires: boolean
+  if (calibrated) fires = driftCm! >= flagCm
+  else if (opts.flagPx != null) fires = driftPx >= opts.flagPx
+  else fires = false
   if (!fires) return null
 
   const confidence: BarDriftCue['confidence'] =

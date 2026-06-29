@@ -63,8 +63,12 @@ describe('analyzeBarDrift', () => {
     expect(cue!.confidence).toBe('low')
   })
 
-  it('reports px (driftCm null) when no plate scale is set', () => {
-    const cue = analyzeBarDrift(path, { x: 100, frames: 30, conf: 0.95 }, null, 100)
+  it('stays silent when uncalibrated by default (px drift is not actionable)', () => {
+    expect(analyzeBarDrift(path, { x: 100, frames: 30, conf: 0.95 }, null, 100)).toBeNull()
+  })
+
+  it('reports px (driftCm null) when uncalibrated firing is explicitly opted in', () => {
+    const cue = analyzeBarDrift(path, { x: 100, frames: 30, conf: 0.95 }, null, 100, { flagPx: 5 })
     expect(cue).not.toBeNull()
     expect(cue!.driftCm).toBeNull()
     expect(cue!.driftPx).toBeCloseTo(10)
