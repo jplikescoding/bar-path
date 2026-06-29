@@ -59,6 +59,13 @@ real number). Also revisit the **5 cm flag** — it's a report heuristic (~2 in,
 noise"), not empirically tuned; pick the on/off-tone boundary from real clips. `analyzeBarDrift`
 already takes `opts.flagCm`, so the threshold is one call-site change.
 
+**Phase 2 data set (JP, 2026-06-29):** JP will provide his full deadlift clip library as the
+tuning/validation set. Caveat: he has **no truly square side-on clips yet — needs a tripod/stand**
+to film directly to the side. Use what exists for *pipeline* validation (foot-landmark survival,
+midfoot placement, cue fire/silent, marker placement, rough threshold) — those hold on a
+roughly-side clip; reserve **absolute-cm** trust for square side-on footage (plate face-on, bar +
+midfoot co-planar). I.e. don't wait on the stand to start Phase 2 validation.
+
 Design report (source of truth for the roadmap): `docs/body-analysis-exploration.md` (PR #3).
 Spike spec: `docs/superpowers/specs/2026-06-29-pose-spike-design.md`.
 
