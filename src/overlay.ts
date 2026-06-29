@@ -61,6 +61,35 @@ export function drawReview(
   }
 }
 
+// Draw the bar-off-midfoot evidence at the peak-drift frame: an amber dashed
+// midfoot reference line + the horizontal bar-to-midfoot gap at the bar's height.
+// Called by the result screen AFTER drawReview (which clears the canvas), only
+// when the current time is at the cue's peak frame. No skeleton (that is Phase 2).
+export function drawDriftMarker(
+  ctx: CanvasRenderingContext2D,
+  path: PathPoint[],
+  cue: { refX: number; frameT: number },
+): void {
+  if (!path.length) return
+  // Bar position at the peak frame = the path point nearest cue.frameT.
+  let bar = path[0], best = Infinity
+  for (const p of path) {
+    const d = Math.abs(p.t - cue.frameT)
+    if (d < best) { best = d; bar = p }
+  }
+  const h = ctx.canvas.height
+  ctx.save()
+  // Midfoot reference line (amber, dashed — distinct from the muted plumb line).
+  ctx.strokeStyle = '#FFB020'; ctx.lineWidth = 2; ctx.setLineDash([6, 5])
+  ctx.beginPath(); ctx.moveTo(cue.refX, 0); ctx.lineTo(cue.refX, h); ctx.stroke()
+  // The drift itself: a solid amber gap from midfoot to the bar at the bar's height.
+  ctx.setLineDash([]); ctx.lineWidth = 3
+  ctx.beginPath(); ctx.moveTo(cue.refX, bar.y); ctx.lineTo(bar.x, bar.y); ctx.stroke()
+  ctx.fillStyle = '#FFB020'
+  ctx.beginPath(); ctx.arc(bar.x, bar.y, 5, 0, Math.PI * 2); ctx.fill()
+  ctx.restore()
+}
+
 // Composite the current video frame + path overlay onto a canvas. Used for
 // EXPORT, where we draw during playback (drawImage works while the video plays).
 export function drawOverlay(
