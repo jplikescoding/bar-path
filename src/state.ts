@@ -1,6 +1,6 @@
 import type { PathPoint } from './geometry'
 
-export type Screen = 'upload' | 'setpoint' | 'processing' | 'result' | 'library'
+export type Screen = 'upload' | 'setpoint' | 'processing' | 'result' | 'library' | 'posetest'
 
 export interface AppData {
   videoUrl: string | null

@@ -5,6 +5,7 @@ import { renderSetPoint } from './screens/setpoint'
 import { renderProcessing } from './screens/processing'
 import { renderResult } from './screens/result'
 import { renderLibrary } from './screens/library'
+import { renderPoseTest } from './screens/posetest'
 
 const root = document.querySelector<HTMLDivElement>('#app')!
 const app = new App(root)
@@ -14,8 +15,10 @@ app.register('setpoint', renderSetPoint)
 app.register('processing', renderProcessing)
 app.register('result', renderResult)
 app.register('library', renderLibrary)
+app.register('posetest', renderPoseTest) // THROWAWAY SPIKE: hidden, reached via #pose only
 
-app.go('upload')
+// Hidden entry point for the pose feasibility spike (branch spike/pose).
+app.go(location.hash === '#pose' ? 'posetest' : 'upload')
 
 // Register the service worker (PWA: offline app-shell + cached OpenCV engine).
 // Guarded + relative path so it works under the GitHub Pages subpath.
