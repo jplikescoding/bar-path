@@ -1,21 +1,30 @@
 # Bar Path Tracker — Handoff / Status
 
-Last updated: 2026-06-25 (Phase 0 cm-drift shipped; next = average metric + body cues).
+Last updated: 2026-06-29 (pose spike GO; next = build Phase 1 body cues).
 
 ## ►► START HERE next session
-Body-analysis design report is merged at `docs/body-analysis-exploration.md` (PR #3) —
-**Verdict: GO, reduced scope** (side-on deadlift first, NOT end-on squat). **Phase 0 (cm
-drift) + the average metric are DONE and shipped** (see below). Next up:
+**Pose spike = GO.** Verified on JP's iPhone Safari (2026-06-29): MediaPipe Pose Landmarker
+ran at **~37 ms/frame median, 14.6 fps, skeleton stuck to the body the whole rep** on a real
+side-on deadlift — clears the ~12–15 fps bar. Pose tracking is viable. The spike lives behind
+the hidden `#pose` URL hash (see `src/screens/posetest.ts`, a throwaway dev harness) and is
+deployed but inert for normal users.
 
-**Body cues (Phase 1 of the report)** — pose tracking to tell the lifter *where* form broke /
-what to fix. This is the big one and warrants its own brainstorm/plan. Add `pose.ts` (lazy
-MediaPipe, like `opencv.ts`) + `coach.ts` (pure, like `geometry.ts`). See report §5–§7 for
-the file-level plan and the hard guardrails (body type only *widens tolerances*, never emits
-prescriptive verdicts; never claim spine/3D from 2D). Start with the deadlift bar-off-midfoot
-+ early-hip-rise cues.
+**Next: BUILD Phase 1 body cues** — its own brainstorm → plan → build cycle. Steps:
+1. **Vendor MediaPipe same-origin** — `src/pose.ts` already exists and is the FOUNDATION (keep
+   it), but it loads `tasks-vision@0.10.35` + the pose-lite model from CDN. For Phase 1, vendor
+   the wasm + `.task` model into `public/` (like `public/opencv.js`) so it's offline + no
+   third-party dependency. Lazy-load only on a screen that needs it.
+2. **`coach.ts`** (pure, like `geometry.ts`, unit-tested) — turn landmarks + the existing bar
+   path into the deadlift cues: **bar-off-midfoot** first, then **early-hip-rise**.
+3. **Cue UI** — surface *where* form broke during the rep, toggleable.
+Hard guardrails (report §5–§7): body type only *widens tolerances*, never emits prescriptive
+verdicts; never claim spine-rounding/3D joint angles from 2D video.
 
-Also still pending: **device-test** the polish round + Phase 0 cm calibration + the new
-peak/avg readout on a real side-on deadlift clip.
+Design report (still the source of truth): `docs/body-analysis-exploration.md` (PR #3).
+Spike spec: `docs/superpowers/specs/2026-06-29-pose-spike-design.md`.
+
+Also still pending (smaller): **device-test** the Phase 0 cm calibration + peak/avg readout on
+a real side-on deadlift clip (the pose spike used a clip but didn't exercise the cm flow).
 
 ## What this is
 A fully **client-side** web app that tracks a barbell's bar path in a lifting video
