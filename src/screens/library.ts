@@ -31,8 +31,8 @@ async function reopen(app: App, saved: SavedAnalysis): Promise<void> {
     path: saved.path,
     savedId: saved.id,
     plateDiameterPx: saved.plateDiameterPx ?? null,
-    poseMidfoot: null,
-    cue: null,
+    poseMidfoot: saved.poseMidfoot ?? null,
+    cue: saved.cue ?? null,
   }
   app.go('result')
 }

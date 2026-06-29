@@ -223,6 +223,8 @@ export function renderResult(app: App, root: HTMLElement): void {
       thumbnail: makeThumbnail(),
       driftRange: drift.range,
       plateDiameterPx: app.data.plateDiameterPx,
+      cue: app.data.cue,
+      poseMidfoot: app.data.poseMidfoot,
     }
     await saveAnalysis(record)
     app.data.savedId = record.id

@@ -1,4 +1,5 @@
 import { pxToCm, type PathPoint } from './geometry'
+import type { BarDriftCue, MidfootEstimate } from './coach'
 
 // A persisted, completed bar-path analysis. Mirrors AppData plus the bits we need
 // to render a library list (name/date/thumbnail/drift) and to reopen later.
@@ -15,6 +16,8 @@ export interface SavedAnalysis {
   thumbnail: string // data: URL JPEG
   driftRange: number
   plateDiameterPx?: number | null // bar-plate diameter in px; enables cm readout. Optional: older records lack it.
+  cue?: BarDriftCue | null            // bar-off-midfoot cue; optional — older records lack it
+  poseMidfoot?: MidfootEstimate | null
 }
 
 const MONTHS = [
