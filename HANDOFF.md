@@ -1,26 +1,55 @@
 # Bar Path Tracker — Handoff / Status
 
-Last updated: 2026-06-29 (pose spike GO; next = build Phase 1 body cues).
+Last updated: 2026-06-29 (Phase 1 bar-off-midfoot BUILT; in PR; next = device-test → Phase 2).
 
 ## ►► START HERE next session
-**Pose spike = GO.** Verified on JP's iPhone Safari (2026-06-29): MediaPipe Pose Landmarker
-ran at **~37 ms/frame median, 14.6 fps, skeleton stuck to the body the whole rep** on a real
-side-on deadlift — clears the ~12–15 fps bar. Pose tracking is viable. The spike lives behind
-the hidden `#pose` URL hash (see `src/screens/posetest.ts`, a throwaway dev harness) and is
-deployed but inert for normal users.
+**Phase 1 (deadlift bar-off-midfoot cue) is BUILT and in a PR** on branch
+`feat/phase1-bar-off-midfoot`. 29/29 tests, build green, full SDD review (per-task + opus
+whole-branch) done; the one Critical found (a pose-failure hang) is fixed. **Next = JP device-test,
+then Phase 2.**
 
-**Next: BUILD Phase 1 body cues** — its own brainstorm → plan → build cycle. Steps:
-1. **Vendor MediaPipe same-origin** — `src/pose.ts` already exists and is the FOUNDATION (keep
-   it), but it loads `tasks-vision@0.10.35` + the pose-lite model from CDN. For Phase 1, vendor
-   the wasm + `.task` model into `public/` (like `public/opencv.js`) so it's offline + no
-   third-party dependency. Lazy-load only on a screen that needs it.
-2. **`coach.ts`** (pure, like `geometry.ts`, unit-tested) — turn landmarks + the existing bar
-   path into the deadlift cues: **bar-off-midfoot** first, then **early-hip-rise**.
-3. **Cue UI** — surface *where* form broke during the rep, toggleable.
-Hard guardrails (report §5–§7): body type only *widens tolerances*, never emits prescriptive
-verdicts; never claim spine-rounding/3D joint angles from 2D video.
+What shipped (spec: `docs/superpowers/specs/2026-06-29-phase1-bar-off-midfoot-design.md`,
+plan: `docs/superpowers/plans/2026-06-29-phase1-bar-off-midfoot.md`):
+- **Vendored MediaPipe same-origin** under `public/mediapipe/` (no CDN, offline); `src/pose.ts`
+  repointed off CDN, still lazy-loaded only on the processing screen.
+- **`src/coach.ts`** (pure, 10 tests) — `analyzeBarDrift` fuses the bar path with a pose-derived
+  **robust median midfoot x**; pose-midfoot → plate-tap fallback → silence. Calibrated clips flag
+  at **≥5 cm**; **uncalibrated stays SILENT** (no actionable px number — shows a "size a plate" hint).
+- **Second pose pass** in `src/screens/processing.ts` (`playFrames` in `capture.ts`, no OpenCV) —
+  pose can't share the tracker's real-time loop (~37 ms/frame). Strictly additive: any pose
+  load/per-frame failure still reaches the result screen.
+- **Cue UI** in `result.ts`/`overlay.ts`: cue card + tappable scrub tick at the peak-drift frame +
+  a minimal amber midfoot line + bar-to-midfoot gap drawn at that frame. **No skeleton** (Phase 2).
+- **Persisted** with saved lifts (optional fields; older records unaffected).
 
-Design report (still the source of truth): `docs/body-analysis-exploration.md` (PR #3).
+### ►► JP device-test checklist (do before/with PR merge)
+Desktop OK for logic (Edge `msedge`, headed, or `npm run preview`); iPhone Safari for real perf.
+- [ ] Real **side-on deadlift + sized plate** → cue card shows a sensible cm number; tapping it
+      seeks to the visibly worst frame; amber midfoot line + gap draw there; scrub tick at that moment.
+- [ ] A **clean rep** → no cue card, no marker.
+- [ ] **Uncalibrated** clip (no plate sized) → "Size a plate…" hint, NO number.
+- [ ] Pose assets load **only on the processing screen** (Network shows `mediapipe/*` during
+      "Reading body position…", not on first paint); **airplane-mode reload** still works.
+- [ ] **Save** a lift with a cue → reopen from library → cue/tick/marker intact. Old saved lift
+      reopens fine with no cue.
+- [ ] iPhone: pose pass completes in reasonable time; foot landmark survives shoes/plate occlusion.
+
+### Deferred / known (after device-test)
+- **Drop ~22 MB unused wasm:** `public/mediapipe/wasm/vision_wasm_module_internal.{js,wasm}` are
+  unused extras from `cp -r` (FilesetResolver only uses `vision_wasm_internal` / `_nosimd_`).
+  `git rm` them to shrink the deploy — **only after** device-test confirms pose loads with the kept pair.
+- **Tilt-correction limitation:** the cue is computed on the UNROTATED path. `verticalAngleRad` is
+  currently dormant (always null), so nothing wrong ships. If tilt-correction is ever re-enabled,
+  route the cue (path + midfoot ref) through the same rotation (commented in `processing.ts`).
+- Cue copy says **"off midfoot"** (neutral), not the spec's "forward" — direction can't be claimed
+  without knowing facing. Facing-detection from heel/toe is a possible Phase 2 add.
+
+### Phase 2 (next build cycle)
+**early-hip-rise cue** (hip-vs-bar vertical rate — net-new insight pose unlocks) + the **toggleable
+skeleton overlay** + the one-time **build slider** (widens tolerances only). Guardrails unchanged
+(report §5–§7): body type only *widens tolerances*, never prescriptive verdicts; never spine/3D from 2D.
+
+Design report (source of truth for the roadmap): `docs/body-analysis-exploration.md` (PR #3).
 Spike spec: `docs/superpowers/specs/2026-06-29-pose-spike-design.md`.
 
 Also still pending (smaller): **device-test** the Phase 0 cm calibration + peak/avg readout on
