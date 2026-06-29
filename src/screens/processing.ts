@@ -91,8 +91,14 @@ export function renderProcessing(app: App, root: HTMLElement): void {
         const pose = await loadPose()
         const xs: (number | null)[] = []
         await playFrames(video, start, end, (v, tMs) => {
-          const lm = pose.detect(v, tMs)[0]
-          xs.push(lm ? midfootXFromFrame(lm, v.videoWidth) : null)
+          // A per-frame detect() can throw (e.g. iOS WebGL context loss when the
+          // tab is backgrounded mid-pass). Swallow to null so the rVFC callback
+          // never rejects — otherwise playFrames would never resolve and the
+          // processing screen would hang. All-null → plate-tap fallback → result.
+          try {
+            const lm = pose.detect(v, tMs)[0]
+            xs.push(lm ? midfootXFromFrame(lm, v.videoWidth) : null)
+          } catch { xs.push(null) }
         }, (f) => {
           const p = Math.round(f * 100)
           barEl.style.width = `${p}%`; pctEl.textContent = `Reading body position… ${p}%`
@@ -102,6 +108,11 @@ export function renderProcessing(app: App, root: HTMLElement): void {
         console.error('pose pass failed; cue falls back to the plate-tap line', err)
         app.data.poseMidfoot = null
       }
+      // NOTE: the cue is computed on the UNROTATED bar path. verticalAngleRad
+      // (tilt-correction) is currently dormant — always null — so this matches
+      // what result.ts displays. If tilt-correction is ever re-enabled, route the
+      // cue (path + midfoot reference) through the same rotation, or the cue's
+      // number and marker will be wrong in the tilt-corrected frame.
       app.data.cue = analyzeBarDrift(
         app.data.path, app.data.poseMidfoot, app.data.plateDiameterPx, app.data.seed!.x,
       )
