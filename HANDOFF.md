@@ -192,11 +192,12 @@ the plumb-line-vs-drifting-path glyph and the result screen's drift-from-plumb g
   show immediately; assets/fonts/opencv stay cache-first for offline.
 
 ## Phase 1 device-test UX findings (JP, 2026-06-29) — fix next (Phase-0 polish, NOT part of PR #4)
-1. **Scale capture is unusable.** The single red dot is BOTH the tracking seed AND the scale-circle
-   center, and sizing is one continuous drag off it — you can't get a good seed AND a fitted circle
-   at once, so you keep redoing the dot. **Redesign (JP's):** tap to place the dot (set 1) → drag to
-   size the circle (set 2) → then dragging *inside* the circle repositions it to fit the plate,
-   independent of the seed. Decouple place / size / reposition. (`src/screens/setpoint.ts`.)
+1. **Scale capture — discoverability, not mechanic.** JP first thought the tap-then-drag-to-rim
+   gesture was unusable, then reconsidered after learning it: click-drag works, and you redo by
+   drawing a new circle. So the earlier "decouple place/size/reposition" redesign is NOT wanted —
+   keep the click-drag. Real gap is **discoverability**: no hint that you can drag to size or
+   redraw to redo, and the dot doubles as the tracking seed. Lightweight fix: an on-screen hint
+   / "redo scale" affordance, not a rebuild. (`src/screens/setpoint.ts`.) LOWER priority than #2.
 2. **Post-save dead end.** After Save, result actions are Library / Export / Delete — no "New", so
    you can't start a fresh analysis without round-tripping. Add a New affordance to the saved state
    (or a clear path from the library screen). (`src/screens/result.ts` `renderActions`, saved branch.)
