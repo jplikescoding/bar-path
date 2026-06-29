@@ -49,6 +49,16 @@ Desktop OK for logic (Edge `msedge`, headed, or `npm run preview`); iPhone Safar
 skeleton overlay** + the one-time **build slider** (widens tolerances only). Guardrails unchanged
 (report §5–§7): body type only *widens tolerances*, never prescriptive verdicts; never spine/3D from 2D.
 
+**UX: make the pose work visible even on a good rep (JP feedback 2026-06-29).** Phase 1's cue is
+*conditionally* surfaced — it only appears when plate-sized AND drift ≥5 cm — so a clean or
+uncalibrated rep looks identical to Phase 0 and the user can't tell the pose pass did anything.
+Rework so the **threshold gates TONE, not visibility**: once a plate is sized, always show a
+midfoot card — a positive "✓ Bar stayed over midfoot (drifted only N cm)" for small drift, and the
+amber "Bar drifted N cm off midfoot" nudge at/above threshold. Keep uncalibrated silent (still no
+real number). Also revisit the **5 cm flag** — it's a report heuristic (~2 in, "above landmark
+noise"), not empirically tuned; pick the on/off-tone boundary from real clips. `analyzeBarDrift`
+already takes `opts.flagCm`, so the threshold is one call-site change.
+
 Design report (source of truth for the roadmap): `docs/body-analysis-exploration.md` (PR #3).
 Spike spec: `docs/superpowers/specs/2026-06-29-pose-spike-design.md`.
 
