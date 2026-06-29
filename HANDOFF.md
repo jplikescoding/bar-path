@@ -191,6 +191,18 @@ the plumb-line-vs-drifting-path glyph and the result screen's drift-from-plumb g
 - SW now does **network-first for HTML navigations** (cache `bp-v2`) so fresh deploys
   show immediately; assets/fonts/opencv stay cache-first for offline.
 
+## Phase 1 device-test UX findings (JP, 2026-06-29) — fix next (Phase-0 polish, NOT part of PR #4)
+1. **Scale capture is unusable.** The single red dot is BOTH the tracking seed AND the scale-circle
+   center, and sizing is one continuous drag off it — you can't get a good seed AND a fitted circle
+   at once, so you keep redoing the dot. **Redesign (JP's):** tap to place the dot (set 1) → drag to
+   size the circle (set 2) → then dragging *inside* the circle repositions it to fit the plate,
+   independent of the seed. Decouple place / size / reposition. (`src/screens/setpoint.ts`.)
+2. **Post-save dead end.** After Save, result actions are Library / Export / Delete — no "New", so
+   you can't start a fresh analysis without round-tripping. Add a New affordance to the saved state
+   (or a clear path from the library screen). (`src/screens/result.ts` `renderActions`, saved branch.)
+3. **Surface the pose work on a good rep** (see Phase 2 UX note above) — clean/uncalibrated reps look
+   identical to Phase 0, so the feature feels absent. Threshold should gate tone, not visibility.
+
 ## Backlog / future
 1. **Side-on test** — JP films a set from directly to the side (true forward/back drift; his
    current clips are end-on so forward/back is invisible).
