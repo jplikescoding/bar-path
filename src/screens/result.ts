@@ -1,5 +1,5 @@
 import type { App } from '../app'
-import { drawReview } from '../overlay'
+import { drawReview, drawDriftMarker } from '../overlay'
 import { rotatePath, horizontalDrift, pxToCm, type PathPoint } from '../geometry'
 import { saveAnalysis, deleteAnalysis } from '../library'
 import { defaultName, type SavedAnalysis } from '../librarySupport'
@@ -11,8 +11,13 @@ export function renderResult(app: App, root: HTMLElement): void {
   if (app.data.verticalAngleRad != null) path = rotatePath(path, app.data.verticalAngleRad, seed)
   const refX = seed.x
   const drift = horizontalDrift(path, refX)
+  const cue = app.data.cue
+  const cueUnit = cue?.driftCm != null ? 'cm' : 'px'
+  const cueVal = cue ? (cue.driftCm != null ? cue.driftCm.toFixed(1) : cue.driftPx.toFixed(0)) : ''
+  const cueRef = cue?.refSource === 'pose-midfoot' ? 'midfoot' : 'your starting line'
   const startT = app.data.startTime
   const endT = Math.max(startT + 0.1, path[path.length - 1]?.t ?? app.data.endTime ?? video.duration)
+  const tickPct = cue ? Math.max(0, Math.min(100, ((cue.frameT - startT) / (endT - startT)) * 100)) : 0
 
   // Deviation gauge geometry: scale each side against the larger of the two so
   // the worse direction fills its half of the track.
@@ -38,7 +43,10 @@ export function renderResult(app: App, root: HTMLElement): void {
         <button id="speed" class="chip" aria-label="Playback speed">1×</button>
         <button id="sound" class="chip" aria-label="Toggle sound" aria-pressed="false">🔇</button>
       </div>
-      <input id="scrub" type="range" min="0" max="1000" value="1000" />
+      <div class="relative">
+        <input id="scrub" type="range" min="0" max="1000" value="1000" class="w-full" />
+        ${cue ? `<div class="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[var(--amber)] pointer-events-none" style="left:${tickPct}%"></div>` : ''}
+      </div>
 
       <div class="card p-4 flex flex-col gap-3">
         <div class="flex items-start justify-between">
@@ -73,6 +81,15 @@ export function renderResult(app: App, root: HTMLElement): void {
         </div>
       </div>
 
+      ${cue ? `
+      <button id="cue-card" class="card p-4 flex flex-col gap-1.5 text-left active:bg-[var(--surface-2)]">
+        <span class="eyebrow text-[var(--amber)]">Bar drift off midfoot</span>
+        <span class="readout text-xl font-semibold leading-tight text-[var(--chalk)]">Bar drifted ${cueVal}${cueUnit} off ${cueRef}</span>
+        <span class="text-sm text-[var(--muted)]">Keeping it over midfoot will feel stronger off the floor. <span class="text-[var(--amber)]">Tap to see the moment →</span></span>
+        ${cue.confidence === 'low' ? '<span class="text-xs text-[var(--faint)]">Measured against your starting line — film square to the side for a midfoot read.</span>' : ''}
+      </button>` : (!calibrated ? `
+      <div class="card p-4 text-sm text-[var(--muted)]">Size a plate on the setup screen to check bar drift off midfoot.</div>` : '')}
+
       <div id="actions"></div>
       <div id="saved-msg" class="text-center text-sm text-[var(--amber)] h-5"></div>
     </div>`
@@ -97,7 +114,10 @@ export function renderResult(app: App, root: HTMLElement): void {
   let exporting = false
   const ac = new AbortController()
 
-  const render = (t: number) => drawReview(ctx, path, t, refX)
+  const render = (t: number) => {
+    drawReview(ctx, path, t, refX)
+    if (cue && Math.abs(t - cue.frameT) < 0.12) drawDriftMarker(ctx, path, { refX: cue.refX, frameT: cue.frameT })
+  }
   const setScrubFromTime = (t: number) => { scrub.value = String(Math.round(((t - startT) / (endT - startT)) * 1000)) }
 
   const tick = () => {
@@ -135,6 +155,14 @@ export function renderResult(app: App, root: HTMLElement): void {
     if (!video.paused) pause()
     video.currentTime = startT + (Number(scrub.value) / 1000) * (endT - startT)
   })
+  const cueCard = root.querySelector<HTMLButtonElement>('#cue-card')
+  if (cueCard && cue) {
+    cueCard.addEventListener('click', () => {
+      pause()
+      video.currentTime = cue.frameT // 'seeked' handler re-renders (marker drawn at the peak frame)
+      setScrubFromTime(cue.frameT)
+    })
+  }
   video.addEventListener('seeked', () => { if (video.paused && !exporting) render(video.currentTime) }, { signal: ac.signal })
 
   const savedMsg = root.querySelector<HTMLDivElement>('#saved-msg')!
@@ -195,6 +223,8 @@ export function renderResult(app: App, root: HTMLElement): void {
       thumbnail: makeThumbnail(),
       driftRange: drift.range,
       plateDiameterPx: app.data.plateDiameterPx,
+      cue: app.data.cue,
+      poseMidfoot: app.data.poseMidfoot,
     }
     await saveAnalysis(record)
     app.data.savedId = record.id
