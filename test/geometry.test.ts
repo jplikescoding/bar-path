@@ -1,5 +1,31 @@
 import { describe, it, expect } from 'vitest'
-import { smoothPath, angleFromVertical, rotatePath, horizontalDrift, pxToCm, PLATE_DIAMETER_CM } from '../src/geometry'
+import { smoothPath, angleFromVertical, rotatePath, horizontalDrift, pxToCm, PLATE_DIAMETER_CM, verticalVelocity } from '../src/geometry'
+
+describe('verticalVelocity', () => {
+  it('reads a constant rise as constant positive vy (px/s)', () => {
+    // y decreases 10px per 0.1s → rising at 100 px/s
+    const pts = Array.from({ length: 20 }, (_, i) => ({ x: 0, y: 1000 - i * 10, t: i * 0.1 }))
+    const v = verticalVelocity(pts)
+    expect(v).toHaveLength(20)
+    for (const p of v) expect(p.vy).toBeCloseTo(100, 0)
+    expect(v[0].t).toBe(0)
+  })
+  it('reads a descent as negative vy', () => {
+    const pts = Array.from({ length: 10 }, (_, i) => ({ x: 0, y: 100 + i * 20, t: i * 0.1 }))
+    const v = verticalVelocity(pts)
+    for (const p of v) expect(p.vy).toBeCloseTo(-200, 0)
+  })
+  it('returns [] for paths shorter than 2 points', () => {
+    expect(verticalVelocity([])).toEqual([])
+    expect(verticalVelocity([{ x: 0, y: 0, t: 0 }])).toEqual([])
+  })
+  it('never produces NaN/Infinity on duplicate timestamps', () => {
+    const pts = [
+      { x: 0, y: 100, t: 0 }, { x: 0, y: 90, t: 0 }, { x: 0, y: 80, t: 0.1 }, { x: 0, y: 70, t: 0.2 },
+    ]
+    for (const p of verticalVelocity(pts)) expect(Number.isFinite(p.vy)).toBe(true)
+  })
+})
 
 describe('smoothPath', () => {
   it('returns a copy when window <= 1', () => {

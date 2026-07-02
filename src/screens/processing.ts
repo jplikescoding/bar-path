@@ -12,7 +12,7 @@ import { smoothPath, type PathPoint } from '../geometry'
 export function renderProcessing(app: App, root: HTMLElement): void {
   const video = app.data.videoEl!
   root.innerHTML = `
-    <div class="min-h-screen flex flex-col items-center justify-center gap-5 p-4">
+    <div class="min-h-screen flex flex-col items-center justify-center gap-5 p-4 rise">
       <p class="eyebrow">Step 2 — Tracking the bar</p>
       <div id="stage" class="frame">
         <div id="retap" class="hidden absolute inset-0 bg-black/55 backdrop-blur-sm flex-col items-center justify-center gap-2 p-4 z-10">
