@@ -1,6 +1,6 @@
 import type { App } from '../app'
 import { drawReview, drawDriftMarker, drawSkeleton } from '../overlay'
-import { rotatePath, horizontalDrift, pxToCm, type PathPoint } from '../geometry'
+import { rotatePath, horizontalDrift, pxToCm, verticalVelocity, type PathPoint } from '../geometry'
 import { saveAnalysis, deleteAnalysis } from '../library'
 import { defaultName, type SavedAnalysis } from '../librarySupport'
 
@@ -53,6 +53,26 @@ export function renderResult(app: App, root: HTMLElement): void {
         tick: 'rgba(230,235,240,0.6)',
       }
 
+  // If the user sized a plate on setup, show drift in real centimeters; else px.
+  const plateDiameterPx = app.data.plateDiameterPx
+  const calibrated = plateDiameterPx != null && plateDiameterPx > 0
+  const unit = calibrated ? 'cm' : 'px'
+  const fmt = (px: number) => calibrated ? pxToCm(px, plateDiameterPx!).toFixed(1) : px.toFixed(0)
+
+  // Bar-speed series for the velocity card (needs a real track to mean anything).
+  const vel = path.length >= 8 ? verticalVelocity(path) : []
+  const velMin = vel.length ? Math.min(...vel.map((v) => v.vy)) : 0
+  const velMax = vel.length ? Math.max(...vel.map((v) => v.vy)) : 1
+  const velSpan = Math.max(1e-6, velMax - velMin)
+  // SVG y for a velocity (viewBox 1000×120, 6px breathing room top/bottom).
+  const velY = (vy: number) => 6 + (1 - (vy - velMin) / velSpan) * 108
+  const velPts = vel.map((v) => `${(pct(v.t) * 10).toFixed(1)},${velY(v.vy).toFixed(1)}`).join(' ')
+  // Speed readout: meters/second when plate-calibrated (VBT-style), else px/s.
+  const fmtSpeed = (vy: number) => calibrated
+    ? `${(pxToCm(vy, plateDiameterPx!) / 100).toFixed(2)}`
+    : `${Math.round(vy)}`
+  const speedUnit = calibrated ? 'm/s' : 'px/s'
+
   // Shared Precision-Instrument cue-card + scrub-tick templates.
   const cueCardHtml = (id: string, ui: { eyebrow: string; eyebrowStyle: string; headline: string; body: string }, foot = '') => `
       <button id="${id}" class="card p-4 flex flex-col gap-1.5 text-left active:bg-[var(--surface-2)]">
@@ -69,12 +89,6 @@ export function renderResult(app: App, root: HTMLElement): void {
   const maxAbs = Math.max(drift.maxLeft, drift.maxRight, 1)
   const leftW = (drift.maxLeft / maxAbs) * 50
   const rightW = (drift.maxRight / maxAbs) * 50
-
-  // If the user sized a plate on setup, show drift in real centimeters; else px.
-  const plateDiameterPx = app.data.plateDiameterPx
-  const calibrated = plateDiameterPx != null && plateDiameterPx > 0
-  const unit = calibrated ? 'cm' : 'px'
-  const fmt = (px: number) => calibrated ? pxToCm(px, plateDiameterPx!).toFixed(1) : px.toFixed(0)
 
   root.innerHTML = `
     <div class="min-h-screen flex flex-col gap-3 p-4 max-w-md mx-auto w-full rise">
@@ -94,6 +108,26 @@ export function renderResult(app: App, root: HTMLElement): void {
         ${cue ? tickHtml(cue.frameT, toneUi.tick) : ''}
         ${hipCue ? tickHtml(hipCue.frameT, hipUi.tick) : ''}
       </div>
+
+      ${vel.length ? `
+      <div class="card p-4 flex flex-col gap-2">
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="eyebrow">Bar speed</span>
+            <div class="flex items-baseline gap-2">
+              <span class="readout text-3xl font-semibold leading-none">${fmtSpeed(velMax)}<span class="text-base text-[var(--muted)] ml-0.5">${speedUnit}</span></span>
+              <span class="eyebrow text-[var(--faint)]">peak</span>
+            </div>
+          </div>
+          <span id="vel-now" class="readout text-sm text-[var(--muted)]"></span>
+        </div>
+        <svg id="vel-svg" viewBox="0 0 1000 120" preserveAspectRatio="none" class="w-full h-20 touch-none cursor-pointer" aria-label="Bar speed over the rep — tap to jump playback">
+          <line x1="0" x2="1000" y1="${velY(0).toFixed(1)}" y2="${velY(0).toFixed(1)}" stroke="var(--line-bright)" stroke-width="1" vector-effect="non-scaling-stroke" />
+          <polyline points="${velPts}" fill="none" stroke="#22ff55" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity="0.9" />
+          <line id="vel-cursor" x1="1000" x2="1000" y1="0" y2="120" stroke="var(--amber)" stroke-width="2" vector-effect="non-scaling-stroke" />
+        </svg>
+        <span class="text-xs text-[var(--muted)]">up = bar rising · the flat line is zero · tap the graph to jump there</span>
+      </div>` : ''}
 
       <div class="card p-4 flex flex-col gap-3">
         <div class="flex items-start justify-between">
@@ -187,8 +221,28 @@ export function renderResult(app: App, root: HTMLElement): void {
   }
   const setScrubFromTime = (t: number) => { scrub.value = String(Math.round(((t - startT) / (endT - startT)) * 1000)) }
 
+  // Velocity card: amber cursor + live now-value ride the same clock as render().
+  const velSvg = root.querySelector<SVGSVGElement>('#vel-svg')
+  const velCursor = root.querySelector<SVGLineElement>('#vel-cursor')
+  const velNow = root.querySelector<HTMLSpanElement>('#vel-now')
+  const velAt = (t: number): number => {
+    if (!vel.length) return 0
+    let best = vel[0], d = Infinity
+    for (const v of vel) {
+      const dd = Math.abs(v.t - t)
+      if (dd < d) { d = dd; best = v }
+    }
+    return best.vy
+  }
+  const updateVel = (t: number) => {
+    if (!velSvg || !velCursor || !velNow) return
+    const x = (pct(t) * 10).toFixed(1)
+    velCursor.setAttribute('x1', x); velCursor.setAttribute('x2', x)
+    velNow.textContent = `now ${fmtSpeed(velAt(t))} ${speedUnit}`
+  }
+
   const tick = () => {
-    render(video.currentTime); setScrubFromTime(video.currentTime)
+    render(video.currentTime); setScrubFromTime(video.currentTime); updateVel(video.currentTime)
     if (video.paused) return
     if (video.currentTime >= endT) { video.pause(); playBtn.textContent = '▶'; render(endT); return }
     video.requestVideoFrameCallback(tick)
@@ -248,7 +302,27 @@ export function renderResult(app: App, root: HTMLElement): void {
       setScrubFromTime(hipCue.frameT)
     })
   }
-  video.addEventListener('seeked', () => { if (video.paused && !exporting) render(video.currentTime) }, { signal: ac.signal })
+  video.addEventListener('seeked', () => {
+    if (video.paused && !exporting) { render(video.currentTime); updateVel(video.currentTime) }
+  }, { signal: ac.signal })
+
+  // Tap/drag on the velocity graph seeks playback to that moment.
+  if (velSvg) {
+    const seekFromPointer = (e: PointerEvent) => {
+      const rect = velSvg.getBoundingClientRect()
+      const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+      if (!video.paused) pause()
+      video.currentTime = startT + frac * (endT - startT)
+      setScrubFromTime(video.currentTime)
+    }
+    velSvg.addEventListener('pointerdown', (e) => {
+      velSvg.setPointerCapture(e.pointerId)
+      seekFromPointer(e)
+    })
+    velSvg.addEventListener('pointermove', (e) => {
+      if (e.buttons & 1) seekFromPointer(e)
+    })
+  }
 
   const savedMsg = root.querySelector<HTMLDivElement>('#saved-msg')!
   const actions = root.querySelector<HTMLDivElement>('#actions')!
@@ -385,4 +459,5 @@ export function renderResult(app: App, root: HTMLElement): void {
   // redraw progressively from the start.
   video.currentTime = endT
   render(endT)
+  updateVel(endT)
 }
