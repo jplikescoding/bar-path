@@ -1,4 +1,64 @@
 import type { PathPoint } from './geometry'
+import type { PoseFrame } from './coach'
+
+// Body-only BlazePose topology (face omitted — clutter with no coaching value).
+// Hardcoded so drawing a saved lift's skeleton never needs the MediaPipe bundle.
+const POSE_BODY_CONNECTIONS: [number, number][] = [
+  [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],             // shoulders + arms
+  [11, 23], [12, 24], [23, 24],                                 // torso
+  [23, 25], [24, 26], [25, 27], [26, 28],                       // legs
+  [27, 29], [28, 30], [29, 31], [30, 32], [27, 31], [28, 32],   // feet
+]
+const BODY_LANDMARKS = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]
+
+// Draw one pose frame as instrument scaffolding: muted chalk bones + joints,
+// skipping any segment whose end is below the visibility floor. When most of
+// the body is uncertain the whole skeleton dims further (honest, not confident-
+// wrong). highlightHips paints the hip segment amber (a fired hip-rise moment).
+// NOTE: drawn in the UNROTATED camera frame — matches the cue path (see the
+// verticalAngleRad note in processing.ts). If tilt-correction is ever
+// re-enabled, rotate these landmarks with the same transform or the skeleton
+// will sit askew of the corrected bar path.
+export function drawSkeleton(
+  ctx: CanvasRenderingContext2D,
+  frame: PoseFrame,
+  highlightHips: boolean,
+  minVis = 0.5,
+): void {
+  const w = ctx.canvas.width, h = ctx.canvas.height
+  const vis = (i: number) => {
+    const l = frame.lm[i]
+    return l != null && (l.vis == null || l.vis >= minVis)
+  }
+  const visibleCount = BODY_LANDMARKS.filter(vis).length
+  const alpha = visibleCount >= BODY_LANDMARKS.length * 0.6 ? 0.5 : 0.25
+  ctx.save()
+  ctx.strokeStyle = `rgba(226,232,240,${alpha})`
+  ctx.fillStyle = `rgba(226,232,240,${alpha})`
+  ctx.lineWidth = 3; ctx.lineCap = 'round'
+  for (const [a, b] of POSE_BODY_CONNECTIONS) {
+    if (!vis(a) || !vis(b)) continue
+    ctx.beginPath()
+    ctx.moveTo(frame.lm[a].x * w, frame.lm[a].y * h)
+    ctx.lineTo(frame.lm[b].x * w, frame.lm[b].y * h)
+    ctx.stroke()
+  }
+  for (const i of BODY_LANDMARKS) {
+    if (!vis(i)) continue
+    ctx.beginPath(); ctx.arc(frame.lm[i].x * w, frame.lm[i].y * h, 4, 0, Math.PI * 2); ctx.fill()
+  }
+  if (highlightHips && vis(23) && vis(24)) {
+    ctx.strokeStyle = '#FFB020'; ctx.fillStyle = '#FFB020'; ctx.lineWidth = 4
+    ctx.beginPath()
+    ctx.moveTo(frame.lm[23].x * w, frame.lm[23].y * h)
+    ctx.lineTo(frame.lm[24].x * w, frame.lm[24].y * h)
+    ctx.stroke()
+    for (const i of [23, 24]) {
+      ctx.beginPath(); ctx.arc(frame.lm[i].x * w, frame.lm[i].y * h, 5, 0, Math.PI * 2); ctx.fill()
+    }
+  }
+  ctx.restore()
+}
 
 // Draw ONLY the path overlay (vertical reference + polyline + latest dot) onto a
 // transparent canvas positioned over a live <video> element. The video renders

@@ -1,5 +1,5 @@
 import type { App } from '../app'
-import { drawReview, drawDriftMarker } from '../overlay'
+import { drawReview, drawDriftMarker, drawSkeleton } from '../overlay'
 import { rotatePath, horizontalDrift, pxToCm, type PathPoint } from '../geometry'
 import { saveAnalysis, deleteAnalysis } from '../library'
 import { defaultName, type SavedAnalysis } from '../librarySupport'
@@ -32,7 +32,37 @@ export function renderResult(app: App, root: HTMLElement): void {
       }
   const startT = app.data.startTime
   const endT = Math.max(startT + 0.1, path[path.length - 1]?.t ?? app.data.endTime ?? video.duration)
-  const tickPct = cue ? Math.max(0, Math.min(100, ((cue.frameT - startT) / (endT - startT)) * 100)) : 0
+  const pct = (t: number) => Math.max(0, Math.min(100, ((t - startT) / (endT - startT)) * 100))
+
+  const hipCue = app.data.hipCue
+  // At most ONE amber cue per review (report §5.4 — no wall of red): if the
+  // drift nudge already fired, a fired hip cue keeps its data but reads in
+  // neutral chalk instead of a second amber alarm.
+  const hipAmber = hipCue?.fired === true && cue?.tone !== 'nudge'
+  const hipUi = hipCue && hipCue.fired
+    ? {
+        eyebrow: 'Hip timing', eyebrowStyle: hipAmber ? 'color:var(--amber)' : 'color:var(--muted)',
+        headline: `Hips rose ~${hipCue.ratio.toFixed(1)}× faster than the bar off the floor`,
+        body: `Chest and hips rising together will feel stronger off the floor. <span class="${hipAmber ? 'text-[var(--amber)]' : 'text-[var(--chalk)]'}">Tap to see the moment →</span>`,
+        tick: hipAmber ? 'var(--amber)' : 'rgba(230,235,240,0.6)',
+      }
+    : {
+        eyebrow: 'Hip timing ✓', eyebrowStyle: 'color:rgba(34,255,85,0.75)',
+        headline: 'Hips and bar rose together',
+        body: `Off the floor, your hips didn’t outrun the bar. <span class="text-[var(--chalk)]">Tap to review the pull →</span>`,
+        tick: 'rgba(230,235,240,0.6)',
+      }
+
+  // Shared Precision-Instrument cue-card + scrub-tick templates.
+  const cueCardHtml = (id: string, ui: { eyebrow: string; eyebrowStyle: string; headline: string; body: string }, foot = '') => `
+      <button id="${id}" class="card p-4 flex flex-col gap-1.5 text-left active:bg-[var(--surface-2)]">
+        <span class="eyebrow" style="${ui.eyebrowStyle}">${ui.eyebrow}</span>
+        <span class="readout text-xl font-semibold leading-tight text-[var(--chalk)]">${ui.headline}</span>
+        <span class="text-sm text-[var(--muted)]">${ui.body}</span>
+        ${foot}
+      </button>`
+  const tickHtml = (t: number, color: string) =>
+    `<div class="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 pointer-events-none" style="left:${pct(t)}%;background:${color}"></div>`
 
   // Deviation gauge geometry: scale each side against the larger of the two so
   // the worse direction fills its half of the track.
@@ -57,10 +87,12 @@ export function renderResult(app: App, root: HTMLElement): void {
         <button id="play" class="btn btn-amber btn-icon" aria-label="Play">▶</button>
         <button id="speed" class="chip" aria-label="Playback speed">1×</button>
         <button id="sound" class="chip" aria-label="Toggle sound" aria-pressed="false">🔇</button>
+        ${app.data.poseFrames?.length ? '<button id="skel" class="chip" aria-label="Toggle skeleton" aria-pressed="false">Skeleton</button>' : ''}
       </div>
       <div class="relative">
         <input id="scrub" type="range" min="0" max="1000" value="1000" class="w-full" />
-        ${cue ? `<div class="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 pointer-events-none" style="left:${tickPct}%;background:${toneUi.tick}"></div>` : ''}
+        ${cue ? tickHtml(cue.frameT, toneUi.tick) : ''}
+        ${hipCue ? tickHtml(hipCue.frameT, hipUi.tick) : ''}
       </div>
 
       <div class="card p-4 flex flex-col gap-3">
@@ -96,14 +128,12 @@ export function renderResult(app: App, root: HTMLElement): void {
         </div>
       </div>
 
-      ${cue ? `
-      <button id="cue-card" class="card p-4 flex flex-col gap-1.5 text-left active:bg-[var(--surface-2)]">
-        <span class="eyebrow" style="${toneUi.eyebrowStyle}">${toneUi.eyebrow}</span>
-        <span class="readout text-xl font-semibold leading-tight text-[var(--chalk)]">${toneUi.headline}</span>
-        <span class="text-sm text-[var(--muted)]">${toneUi.body}</span>
-        ${cue.confidence === 'low' ? '<span class="text-xs text-[var(--faint)]">Measured against your starting line — film square to the side for a midfoot read.</span>' : ''}
-      </button>` : (!calibrated ? `
+      ${cue ? cueCardHtml('cue-card', toneUi, cue.confidence === 'low'
+        ? '<span class="text-xs text-[var(--faint)]">Measured against your starting line — film square to the side for a midfoot read.</span>' : '')
+      : (!calibrated ? `
       <div class="card p-4 text-sm text-[var(--muted)]">Size a plate on the setup screen to check bar drift off midfoot.</div>` : '')}
+
+      ${hipCue ? cueCardHtml('hip-card', hipUi) : ''}
 
       <div id="actions"></div>
       <div id="saved-msg" class="text-center text-sm text-[var(--amber)] h-5"></div>
@@ -130,9 +160,30 @@ export function renderResult(app: App, root: HTMLElement): void {
   const ac = new AbortController()
 
   const marker = cue ? { refX: cue.refX, frameT: cue.frameT, color: toneUi.marker } : null
+  const poseFrames = app.data.poseFrames
+  let skelOn = false
+  // Pose frames are time-ordered; nearest-frame by |Δt| (≈150 frames — linear is fine).
+  const nearestFrame = (t: number) => {
+    let bestF = poseFrames![0], best = Infinity
+    for (const f of poseFrames!) {
+      const d = Math.abs(f.t - t)
+      if (d < best) { best = d; bestF = f }
+    }
+    return bestF
+  }
   const render = (t: number) => {
     drawReview(ctx, path, t, refX)
     if (cue && marker && Math.abs(t - cue.frameT) < 0.12) drawDriftMarker(ctx, path, marker)
+    if (skelOn && poseFrames?.length) {
+      const f = nearestFrame(t)
+      // Detection gaps are real (the detector drops a crouched lifter for
+      // seconds): past 0.35s the nearest frame is a stale pose that would paint
+      // bones off the body — hide instead of guessing (honesty over coverage).
+      if (Math.abs(f.t - t) <= 0.35) {
+        const inHipWindow = hipCue?.fired === true && t >= hipCue.startT - 0.05 && t <= hipCue.endT + 0.05
+        drawSkeleton(ctx, f, inHipWindow)
+      }
+    }
   }
   const setScrubFromTime = (t: number) => { scrub.value = String(Math.round(((t - startT) / (endT - startT)) * 1000)) }
 
@@ -162,6 +213,16 @@ export function renderResult(app: App, root: HTMLElement): void {
     soundBtn.setAttribute('aria-pressed', String(soundOn))
     video.muted = !soundOn // applies live if already playing
   })
+  const skelBtn = root.querySelector<HTMLButtonElement>('#skel')
+  if (skelBtn) {
+    skelBtn.addEventListener('click', () => {
+      skelOn = !skelOn
+      skelBtn.setAttribute('aria-pressed', String(skelOn))
+      skelBtn.style.borderColor = skelOn ? 'var(--amber)' : ''
+      skelBtn.style.color = skelOn ? 'var(--amber)' : ''
+      render(video.currentTime)
+    })
+  }
   root.querySelector('#drift-info')!.addEventListener('click', () => {
     const panel = root.querySelector<HTMLDivElement>('#drift-explain')!
     const open = panel.classList.toggle('hidden') === false
@@ -177,6 +238,14 @@ export function renderResult(app: App, root: HTMLElement): void {
       pause()
       video.currentTime = cue.frameT // 'seeked' handler re-renders (marker drawn at the peak frame)
       setScrubFromTime(cue.frameT)
+    })
+  }
+  const hipCard = root.querySelector<HTMLButtonElement>('#hip-card')
+  if (hipCard && hipCue) {
+    hipCard.addEventListener('click', () => {
+      pause()
+      video.currentTime = hipCue.frameT
+      setScrubFromTime(hipCue.frameT)
     })
   }
   video.addEventListener('seeked', () => { if (video.paused && !exporting) render(video.currentTime) }, { signal: ac.signal })
@@ -241,6 +310,8 @@ export function renderResult(app: App, root: HTMLElement): void {
       plateDiameterPx: app.data.plateDiameterPx,
       cue: app.data.cue,
       poseMidfoot: app.data.poseMidfoot,
+      poseFrames: app.data.poseFrames,
+      hipCue: app.data.hipCue,
     }
     await saveAnalysis(record)
     app.data.savedId = record.id
