@@ -1,5 +1,5 @@
 import type { App } from '../app'
-import { drawReview, drawDriftMarker } from '../overlay'
+import { drawReview, drawDriftMarker, drawSkeleton } from '../overlay'
 import { rotatePath, horizontalDrift, pxToCm, type PathPoint } from '../geometry'
 import { saveAnalysis, deleteAnalysis } from '../library'
 import { defaultName, type SavedAnalysis } from '../librarySupport'
@@ -73,6 +73,7 @@ export function renderResult(app: App, root: HTMLElement): void {
         <button id="play" class="btn btn-amber btn-icon" aria-label="Play">▶</button>
         <button id="speed" class="chip" aria-label="Playback speed">1×</button>
         <button id="sound" class="chip" aria-label="Toggle sound" aria-pressed="false">🔇</button>
+        ${app.data.poseFrames?.length ? '<button id="skel" class="chip" aria-label="Toggle skeleton" aria-pressed="false">Skeleton</button>' : ''}
       </div>
       <div class="relative">
         <input id="scrub" type="range" min="0" max="1000" value="1000" class="w-full" />
@@ -154,9 +155,24 @@ export function renderResult(app: App, root: HTMLElement): void {
   const ac = new AbortController()
 
   const marker = cue ? { refX: cue.refX, frameT: cue.frameT, color: toneUi.marker } : null
+  const poseFrames = app.data.poseFrames
+  let skelOn = false
+  // Pose frames are time-ordered; nearest-frame by |Δt| (≈150 frames — linear is fine).
+  const nearestFrame = (t: number) => {
+    let bestF = poseFrames![0], best = Infinity
+    for (const f of poseFrames!) {
+      const d = Math.abs(f.t - t)
+      if (d < best) { best = d; bestF = f }
+    }
+    return bestF
+  }
   const render = (t: number) => {
     drawReview(ctx, path, t, refX)
     if (cue && marker && Math.abs(t - cue.frameT) < 0.12) drawDriftMarker(ctx, path, marker)
+    if (skelOn && poseFrames?.length) {
+      const inHipWindow = hipCue?.fired === true && t >= hipCue.startT - 0.05 && t <= hipCue.endT + 0.05
+      drawSkeleton(ctx, nearestFrame(t), inHipWindow)
+    }
   }
   const setScrubFromTime = (t: number) => { scrub.value = String(Math.round(((t - startT) / (endT - startT)) * 1000)) }
 
@@ -186,6 +202,16 @@ export function renderResult(app: App, root: HTMLElement): void {
     soundBtn.setAttribute('aria-pressed', String(soundOn))
     video.muted = !soundOn // applies live if already playing
   })
+  const skelBtn = root.querySelector<HTMLButtonElement>('#skel')
+  if (skelBtn) {
+    skelBtn.addEventListener('click', () => {
+      skelOn = !skelOn
+      skelBtn.setAttribute('aria-pressed', String(skelOn))
+      skelBtn.style.borderColor = skelOn ? 'var(--amber)' : ''
+      skelBtn.style.color = skelOn ? 'var(--amber)' : ''
+      render(video.currentTime)
+    })
+  }
   root.querySelector('#drift-info')!.addEventListener('click', () => {
     const panel = root.querySelector<HTMLDivElement>('#drift-explain')!
     const open = panel.classList.toggle('hidden') === false
