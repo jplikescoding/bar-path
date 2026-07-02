@@ -79,6 +79,122 @@ export function robustMidfoot(
   return { x: median, frames: xs.length, conf: xs.length / perFrameX.length }
 }
 
+// ——— Early-hip-rise cue (Phase 2) ———————————————————————————————————————————
+// "Hips shooting up before the bar leaves the floor" is one of the report's few
+// build-independent, reliably-2D deadlift faults (§3.2/§4.4): compare how much
+// the HIPS rise vs how much the BAR rises over the early pull. The ratio is
+// unitless, so it works without a plate scale — but only with strong pose data.
+
+export interface HipRiseCue {
+  ratio: number      // hip rise ÷ bar rise over the early-pull window
+  fired: boolean     // true = hips shot up early (nudge); false = moved together (positive)
+  startT: number     // pull start (bar leaves its bottom)
+  endT: number       // window end (bar has risen windowFrac of its ROM)
+  frameT: number     // moment of max hip-vs-bar divergence (scrub tick / seek target)
+}
+
+const LEFT_HIP = 23, RIGHT_HIP = 24
+
+// Mean visible hip y for one frame (normalized 0..1), or null if neither hip clears minVis.
+export function hipYFromFrame(lm: PoseLm[], minVis = 0.5): number | null {
+  let sum = 0, n = 0
+  for (const i of [LEFT_HIP, RIGHT_HIP]) {
+    const l = lm[i]
+    if (!l) continue
+    if (l.vis != null && l.vis < minVis) continue
+    sum += l.y; n++
+  }
+  return n ? sum / n : null
+}
+
+const median = (xs: number[]): number => {
+  const s = xs.slice().sort((a, b) => a - b)
+  const m = s.length >> 1
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2
+}
+
+// Pure & total. Silence (null) whenever the geometry or the pose data is not
+// trustworthy — a wrong timing call is worse than no call (report guardrail).
+export function analyzeHipRise(
+  path: PathPoint[],
+  poseFrames: PoseFrame[] | null,
+  videoHeight: number,
+  opts: {
+    fireRatio?: number      // hips rising this many × the bar fires the nudge
+    windowFrac?: number     // early-pull window = bar's first fraction of its ROM
+    minFrames?: number      // pose frames with a visible hip needed inside the window
+    minHipRiseFrac?: number // hip rise (× videoHeight) below this never fires (noise floor)
+    minRomFrac?: number     // bar ROM (× videoHeight) below this = no real pull → silence
+  } = {},
+): HipRiseCue | null {
+  if (!path.length || !poseFrames?.length || videoHeight <= 0) return null
+  const fireRatio = opts.fireRatio ?? 1.5
+  const windowFrac = opts.windowFrac ?? 0.25
+  const minFrames = opts.minFrames ?? 5
+  const minHipRisePx = (opts.minHipRiseFrac ?? 0.02) * videoHeight
+  const minRomPx = (opts.minRomFrac ?? 0.15) * videoHeight
+
+  // Pull start = the bar's bottom (max screen y; first occurrence on a plateau).
+  let bottom = path[0]
+  let topY = path[0].y
+  for (const p of path) {
+    if (p.y > bottom.y) bottom = p
+    if (p.y < topY) topY = p.y
+  }
+  const rom = bottom.y - topY
+  if (rom < minRomPx) return null
+
+  // Window end = first frame at/after the bottom where the bar has risen windowFrac·ROM.
+  const risenY = bottom.y - windowFrac * rom
+  let end: PathPoint | null = null
+  for (const p of path) {
+    if (p.t < bottom.t) continue
+    if (p.y <= risenY) { end = p; break }
+  }
+  if (!end) return null
+  const startT = bottom.t, endT = end.t
+
+  // Hip samples inside the window (px, screen-down like the bar path).
+  const hips: { t: number; y: number }[] = []
+  for (const f of poseFrames) {
+    if (f.t < startT || f.t > endT) continue
+    const y = hipYFromFrame(f.lm)
+    if (y != null) hips.push({ t: f.t, y: y * videoHeight })
+  }
+  if (hips.length < minFrames) return null
+
+  // Rise over the window, endpoints estimated as medians of the first/last 20%
+  // (identical slices for hip and bar, so landmark jitter attenuates both alike).
+  const slice = 0.2 * (endT - startT)
+  const inStart = (t: number) => t <= startT + slice
+  const inEnd = (t: number) => t >= endT - slice
+  const hipStartYs = hips.filter((h) => inStart(h.t)).map((h) => h.y)
+  const hipEndYs = hips.filter((h) => inEnd(h.t)).map((h) => h.y)
+  const barStartYs = path.filter((p) => p.t >= startT && inStart(p.t)).map((p) => p.y)
+  const barEndYs = path.filter((p) => p.t <= endT && inEnd(p.t)).map((p) => p.y)
+  if (!hipStartYs.length || !hipEndYs.length || !barStartYs.length || !barEndYs.length) return null
+
+  const hipStart = median(hipStartYs)
+  const hipRise = hipStart - median(hipEndYs)
+  const barStart = median(barStartYs)
+  const barRise = barStart - median(barEndYs)
+  if (barRise <= 0) return null
+
+  const ratio = hipRise / barRise
+  const fired = ratio >= fireRatio && hipRise >= minHipRisePx
+
+  // Peak divergence: where the hips have gotten the farthest ahead of the bar.
+  let frameT = endT, peak = -Infinity
+  let pi = 0
+  for (const hp of hips) {
+    while (pi < path.length - 1 && path[pi].t < hp.t) pi++
+    const div = (hipStart - hp.y) - (barStart - path[pi].y)
+    if (div > peak) { peak = div; frameT = hp.t }
+  }
+
+  return { ratio, fired, startT, endT, frameT }
+}
+
 // Fuse the bar path (from the LK tracker) with the midfoot reference into a cue.
 // Pure & total: same inputs → same output; returns null (no cue) when drift is
 // below threshold or there is nothing to measure. Silence is a valid output.

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { midfootXFromFrame, robustMidfoot, analyzeBarDrift, slimFrame, type PoseLm } from '../src/coach'
+import {
+  midfootXFromFrame, robustMidfoot, analyzeBarDrift, slimFrame, analyzeHipRise,
+  type PoseLm, type PoseFrame,
+} from '../src/coach'
 import type { Landmark } from '../src/pose'
 import type { PathPoint } from '../src/geometry'
 
@@ -116,5 +119,68 @@ describe('analyzeBarDrift', () => {
 
   it('returns null on empty input (total & safe)', () => {
     expect(analyzeBarDrift([], null, plate, 100)).toBeNull()
+  })
+})
+
+describe('analyzeHipRise', () => {
+  const H = 1000 // videoHeight px
+
+  // Bar sits at y=900 until t=1, then rises linearly to y=300 by t=4 (ROM 600px).
+  const rising = (): PathPoint[] => {
+    const pts: PathPoint[] = []
+    for (let t = 0; t <= 1.001; t += 0.1) pts.push({ x: 100, y: 900, t: +t.toFixed(2) })
+    for (let t = 1.1; t <= 4.001; t += 0.1) pts.push({ x: 100, y: 900 - 600 * ((t - 1) / 3), t: +t.toFixed(2) })
+    return pts
+  }
+  // Pose frames every 0.1s with both hips at a given normalized y.
+  const framesWithHip = (hipYAt: (t: number) => number): PoseFrame[] => {
+    const fs: PoseFrame[] = []
+    for (let t = 0; t <= 4.001; t += 0.1) {
+      const lm: PoseLm[] = []
+      lm[23] = { x: 0.5, y: hipYAt(t), vis: 1 }
+      lm[24] = { x: 0.5, y: hipYAt(t), vis: 1 }
+      fs.push({ t: +t.toFixed(2), lm })
+    }
+    return fs
+  }
+
+  it('good rep — hips rise with the bar (no shooting up) → cue present, not fired', () => {
+    // hips rise steadily at ~25% of the bar's rate (long-limbed pulls sit here):
+    // over the early window that is well under the 1.5× fire ratio.
+    const hip = (t: number) => t <= 1 ? 0.60 : 0.60 - 0.15 * Math.min(1, (t - 1) / 3)
+    const cue = analyzeHipRise(rising(), framesWithHip(hip), H)
+    expect(cue).not.toBeNull()
+    expect(cue!.fired).toBe(false)
+    expect(cue!.ratio).toBeGreaterThan(0.05)
+    expect(cue!.ratio).toBeLessThan(1.5)
+  })
+
+  it('early hip rise — hips far outrun the bar in the window → fired, frameT inside window', () => {
+    // hip rise FRONT-LOADED: hips drop 350px of slack in the first 0.75s of the
+    // pull while the bar makes only its first ~120px — the classic shoot-up.
+    const hip = (t: number) => t <= 1 ? 0.80 : 0.80 - 0.35 * Math.min(1, (t - 1) / 0.75)
+    const cue = analyzeHipRise(rising(), framesWithHip(hip), H)
+    expect(cue).not.toBeNull()
+    expect(cue!.fired).toBe(true)
+    expect(cue!.ratio).toBeGreaterThanOrEqual(1.5)
+    expect(cue!.frameT).toBeGreaterThanOrEqual(cue!.startT)
+    expect(cue!.frameT).toBeLessThanOrEqual(cue!.endT + 0.101)
+  })
+
+  it('null when pose frames are missing or hips are below the visibility floor', () => {
+    expect(analyzeHipRise(rising(), null, H)).toBeNull()
+    const blind = framesWithHip(() => 0.5).map((f) => ({
+      ...f, lm: f.lm.map((l) => ({ ...l, vis: 0.1 })),
+    }))
+    expect(analyzeHipRise(rising(), blind, H)).toBeNull()
+  })
+
+  it('null when the bar never really rises (no pull to judge)', () => {
+    const flat: PathPoint[] = Array.from({ length: 40 }, (_, i) => ({ x: 100, y: 900 - i, t: i / 10 }))
+    expect(analyzeHipRise(flat, framesWithHip(() => 0.5), H)).toBeNull()
+  })
+
+  it('null on empty path (total & safe)', () => {
+    expect(analyzeHipRise([], framesWithHip(() => 0.5), H)).toBeNull()
   })
 })
