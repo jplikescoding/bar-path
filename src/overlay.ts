@@ -15,6 +15,10 @@ const BODY_LANDMARKS = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28, 29, 30, 
 // skipping any segment whose end is below the visibility floor. When most of
 // the body is uncertain the whole skeleton dims further (honest, not confident-
 // wrong). highlightHips paints the hip segment amber (a fired hip-rise moment).
+// NOTE: drawn in the UNROTATED camera frame — matches the cue path (see the
+// verticalAngleRad note in processing.ts). If tilt-correction is ever
+// re-enabled, rotate these landmarks with the same transform or the skeleton
+// will sit askew of the corrected bar path.
 export function drawSkeleton(
   ctx: CanvasRenderingContext2D,
   frame: PoseFrame,

@@ -3,7 +3,10 @@ import { loadOpenCV } from '../opencv'
 import { createTracker } from '../tracker'
 import { playAndProcess, playFrames } from '../capture'
 import { loadPose } from '../pose'
-import { midfootXFromFrame, robustMidfoot, analyzeBarDrift, analyzeHipRise, slimFrame, type PoseFrame } from '../coach'
+import {
+  midfootXFromFrame, robustMidfoot, analyzeBarDrift, analyzeHipRise, slimFrame,
+  POSE_WARMUP_S, type PoseFrame,
+} from '../coach'
 import { smoothPath, type PathPoint } from '../geometry'
 
 export function renderProcessing(app: App, root: HTMLElement): void {
@@ -98,13 +101,11 @@ export function renderProcessing(app: App, root: HTMLElement): void {
         const pose = await loadPose()
         const xs: (number | null)[] = []
         const frames: PoseFrame[] = []
-        // Warm-up: MediaPipe VIDEO mode is stateful — the person DETECTOR often
-        // misses a lifter already bent over the bar, but once locked (usually
-        // while they stand/approach) the TRACKER follows the crouch fine. So the
-        // pose pass starts ~2s before the trim start to lock on, and keeps
-        // nothing from the warm-up window. (Validated on a real clip: a cold
-        // start at the setup crouch lost pose for the entire early pull.)
-        const warmStart = Math.max(0, start - 2)
+        // Warm-up lead-in (see POSE_WARMUP_S in coach.ts): lock the pose tracker
+        // before the trim start; warm-up frames are never collected. (Validated
+        // on a real clip: a cold start at the setup crouch lost pose for the
+        // entire early pull.)
+        const warmStart = Math.max(0, start - POSE_WARMUP_S)
         await playFrames(video, warmStart, end, (v, tMs, t) => {
           // A per-frame detect() can throw (e.g. iOS WebGL context loss when the
           // tab is backgrounded mid-pass). Swallow to null so the rVFC callback

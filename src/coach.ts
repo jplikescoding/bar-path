@@ -19,6 +19,24 @@ export function slimFrame(landmarks: Landmark[], t: number): PoseFrame {
   }
 }
 
+const median = (xs: number[]): number => {
+  const s = xs.slice().sort((a, b) => a - b)
+  const m = s.length >> 1
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2
+}
+
+// Mean of the given landmarks' x or y over the visibility floor; null when none clear it.
+function meanVisible(lm: PoseLm[], idxs: number[], axis: 'x' | 'y', minVis: number): number | null {
+  let sum = 0, n = 0
+  for (const i of idxs) {
+    const l = lm[i]
+    if (!l) continue
+    if (l.vis != null && l.vis < minVis) continue
+    sum += l[axis]; n++
+  }
+  return n ? sum / n : null
+}
+
 // One robust midfoot reference: the median camera-side foot x (pixels) plus how
 // many frames contributed and the fraction that did (confidence).
 export interface MidfootEstimate { x: number; frames: number; conf: number }
@@ -50,17 +68,8 @@ export function midfootXFromFrame(
   videoWidth: number,
   minVis = 0.5,
 ): number | null {
-  const avg = (idxs: number[]): number | null => {
-    let sum = 0, n = 0
-    for (const i of idxs) {
-      const lm = landmarks[i]
-      if (!lm) continue
-      if (lm.vis != null && lm.vis < minVis) continue
-      sum += lm.x; n++
-    }
-    return n ? sum / n : null
-  }
-  const heel = avg(HEELS), toe = avg(TOES)
+  const heel = meanVisible(landmarks, HEELS, 'x', minVis)
+  const toe = meanVisible(landmarks, TOES, 'x', minVis)
   if (heel == null || toe == null) return null
   return ((heel + toe) / 2) * videoWidth
 }
@@ -73,10 +82,7 @@ export function robustMidfoot(
 ): MidfootEstimate | null {
   const xs = perFrameX.filter((v): v is number => v != null)
   if (xs.length < minFrames) return null
-  const sorted = xs.slice().sort((a, b) => a - b)
-  const mid = sorted.length >> 1
-  const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
-  return { x: median, frames: xs.length, conf: xs.length / perFrameX.length }
+  return { x: median(xs), frames: xs.length, conf: xs.length / perFrameX.length }
 }
 
 // ——— Early-hip-rise cue (Phase 2) ———————————————————————————————————————————
@@ -93,24 +99,18 @@ export interface HipRiseCue {
   frameT: number     // moment of max hip-vs-bar divergence (scrub tick / seek target)
 }
 
-const LEFT_HIP = 23, RIGHT_HIP = 24
+const HIPS = [23, 24]
+
+// The pose pass warms up this many seconds BEFORE the trim start: MediaPipe
+// VIDEO mode's person detector often misses a lifter already bent over the bar
+// on a cold start, but the tracker follows fine once locked while they stand/
+// approach. Lives here with the other pose tuning knobs (Phase 2 clip-library
+// tuning adjusts them together).
+export const POSE_WARMUP_S = 2
 
 // Mean visible hip y for one frame (normalized 0..1), or null if neither hip clears minVis.
 export function hipYFromFrame(lm: PoseLm[], minVis = 0.5): number | null {
-  let sum = 0, n = 0
-  for (const i of [LEFT_HIP, RIGHT_HIP]) {
-    const l = lm[i]
-    if (!l) continue
-    if (l.vis != null && l.vis < minVis) continue
-    sum += l.y; n++
-  }
-  return n ? sum / n : null
-}
-
-const median = (xs: number[]): number => {
-  const s = xs.slice().sort((a, b) => a - b)
-  const m = s.length >> 1
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2
+  return meanVisible(lm, HIPS, 'y', minVis)
 }
 
 // Pure & total. Silence (null) whenever the geometry or the pose data is not

@@ -33,15 +33,18 @@ export function renderResult(app: App, root: HTMLElement): void {
   const startT = app.data.startTime
   const endT = Math.max(startT + 0.1, path[path.length - 1]?.t ?? app.data.endTime ?? video.duration)
   const pct = (t: number) => Math.max(0, Math.min(100, ((t - startT) / (endT - startT)) * 100))
-  const tickPct = cue ? pct(cue.frameT) : 0
 
   const hipCue = app.data.hipCue
+  // At most ONE amber cue per review (report §5.4 — no wall of red): if the
+  // drift nudge already fired, a fired hip cue keeps its data but reads in
+  // neutral chalk instead of a second amber alarm.
+  const hipAmber = hipCue?.fired === true && cue?.tone !== 'nudge'
   const hipUi = hipCue && hipCue.fired
     ? {
-        eyebrow: 'Hip timing', eyebrowStyle: 'color:var(--amber)',
-        headline: `Hips rose ${hipCue.ratio.toFixed(1)}× faster than the bar off the floor`,
-        body: `Push the floor away — chest and hips rise together. <span class="text-[var(--amber)]">Tap to see the moment →</span>`,
-        tick: 'var(--amber)',
+        eyebrow: 'Hip timing', eyebrowStyle: hipAmber ? 'color:var(--amber)' : 'color:var(--muted)',
+        headline: `Hips rose ~${hipCue.ratio.toFixed(1)}× faster than the bar off the floor`,
+        body: `Chest and hips rising together will feel stronger off the floor. <span class="${hipAmber ? 'text-[var(--amber)]' : 'text-[var(--chalk)]'}">Tap to see the moment →</span>`,
+        tick: hipAmber ? 'var(--amber)' : 'rgba(230,235,240,0.6)',
       }
     : {
         eyebrow: 'Hip timing ✓', eyebrowStyle: 'color:rgba(34,255,85,0.75)',
@@ -49,6 +52,17 @@ export function renderResult(app: App, root: HTMLElement): void {
         body: `Off the floor, your hips didn’t outrun the bar. <span class="text-[var(--chalk)]">Tap to review the pull →</span>`,
         tick: 'rgba(230,235,240,0.6)',
       }
+
+  // Shared Precision-Instrument cue-card + scrub-tick templates.
+  const cueCardHtml = (id: string, ui: { eyebrow: string; eyebrowStyle: string; headline: string; body: string }, foot = '') => `
+      <button id="${id}" class="card p-4 flex flex-col gap-1.5 text-left active:bg-[var(--surface-2)]">
+        <span class="eyebrow" style="${ui.eyebrowStyle}">${ui.eyebrow}</span>
+        <span class="readout text-xl font-semibold leading-tight text-[var(--chalk)]">${ui.headline}</span>
+        <span class="text-sm text-[var(--muted)]">${ui.body}</span>
+        ${foot}
+      </button>`
+  const tickHtml = (t: number, color: string) =>
+    `<div class="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 pointer-events-none" style="left:${pct(t)}%;background:${color}"></div>`
 
   // Deviation gauge geometry: scale each side against the larger of the two so
   // the worse direction fills its half of the track.
@@ -77,8 +91,8 @@ export function renderResult(app: App, root: HTMLElement): void {
       </div>
       <div class="relative">
         <input id="scrub" type="range" min="0" max="1000" value="1000" class="w-full" />
-        ${cue ? `<div class="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 pointer-events-none" style="left:${tickPct}%;background:${toneUi.tick}"></div>` : ''}
-        ${hipCue ? `<div class="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 pointer-events-none" style="left:${pct(hipCue.frameT)}%;background:${hipUi.tick}"></div>` : ''}
+        ${cue ? tickHtml(cue.frameT, toneUi.tick) : ''}
+        ${hipCue ? tickHtml(hipCue.frameT, hipUi.tick) : ''}
       </div>
 
       <div class="card p-4 flex flex-col gap-3">
@@ -114,21 +128,12 @@ export function renderResult(app: App, root: HTMLElement): void {
         </div>
       </div>
 
-      ${cue ? `
-      <button id="cue-card" class="card p-4 flex flex-col gap-1.5 text-left active:bg-[var(--surface-2)]">
-        <span class="eyebrow" style="${toneUi.eyebrowStyle}">${toneUi.eyebrow}</span>
-        <span class="readout text-xl font-semibold leading-tight text-[var(--chalk)]">${toneUi.headline}</span>
-        <span class="text-sm text-[var(--muted)]">${toneUi.body}</span>
-        ${cue.confidence === 'low' ? '<span class="text-xs text-[var(--faint)]">Measured against your starting line — film square to the side for a midfoot read.</span>' : ''}
-      </button>` : (!calibrated ? `
+      ${cue ? cueCardHtml('cue-card', toneUi, cue.confidence === 'low'
+        ? '<span class="text-xs text-[var(--faint)]">Measured against your starting line — film square to the side for a midfoot read.</span>' : '')
+      : (!calibrated ? `
       <div class="card p-4 text-sm text-[var(--muted)]">Size a plate on the setup screen to check bar drift off midfoot.</div>` : '')}
 
-      ${hipCue ? `
-      <button id="hip-card" class="card p-4 flex flex-col gap-1.5 text-left active:bg-[var(--surface-2)]">
-        <span class="eyebrow" style="${hipUi.eyebrowStyle}">${hipUi.eyebrow}</span>
-        <span class="readout text-xl font-semibold leading-tight text-[var(--chalk)]">${hipUi.headline}</span>
-        <span class="text-sm text-[var(--muted)]">${hipUi.body}</span>
-      </button>` : ''}
+      ${hipCue ? cueCardHtml('hip-card', hipUi) : ''}
 
       <div id="actions"></div>
       <div id="saved-msg" class="text-center text-sm text-[var(--amber)] h-5"></div>
@@ -170,8 +175,14 @@ export function renderResult(app: App, root: HTMLElement): void {
     drawReview(ctx, path, t, refX)
     if (cue && marker && Math.abs(t - cue.frameT) < 0.12) drawDriftMarker(ctx, path, marker)
     if (skelOn && poseFrames?.length) {
-      const inHipWindow = hipCue?.fired === true && t >= hipCue.startT - 0.05 && t <= hipCue.endT + 0.05
-      drawSkeleton(ctx, nearestFrame(t), inHipWindow)
+      const f = nearestFrame(t)
+      // Detection gaps are real (the detector drops a crouched lifter for
+      // seconds): past 0.35s the nearest frame is a stale pose that would paint
+      // bones off the body — hide instead of guessing (honesty over coverage).
+      if (Math.abs(f.t - t) <= 0.35) {
+        const inHipWindow = hipCue?.fired === true && t >= hipCue.startT - 0.05 && t <= hipCue.endT + 0.05
+        drawSkeleton(ctx, f, inHipWindow)
+      }
     }
   }
   const setScrubFromTime = (t: number) => { scrub.value = String(Math.round(((t - startT) / (endT - startT)) * 1000)) }
