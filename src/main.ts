@@ -9,6 +9,8 @@ import { renderPoseTest } from './screens/posetest'
 
 const root = document.querySelector<HTMLDivElement>('#app')!
 const app = new App(root)
+// Handle for the local Playwright harness (scripts/*.mjs) to inspect AppData.
+;(window as any).__app = app
 
 app.register('upload', renderUpload)
 app.register('setpoint', renderSetPoint)

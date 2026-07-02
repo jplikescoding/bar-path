@@ -38,7 +38,13 @@ export function renderProcessing(app: App, root: HTMLElement): void {
   const pctEl = root.querySelector<HTMLParagraphElement>('#pct')!
   const retapEl = root.querySelector<HTMLDivElement>('#retap')!
 
+  // Set once pass 1 resolves: a tracking loss on the clip's FINAL frames can race
+  // the 'ended'-driven finish — the orphaned reTap would then pause the video and
+  // paint its overlay UNDER the pose pass, hanging the screen forever. An
+  // after-the-pass loss has nothing to re-seed, so it must touch nothing.
+  let pass1Over = false
   const reTap = (): Promise<{ x: number; y: number }> => new Promise((resolve) => {
+    if (pass1Over) return // orphaned: never resolves, never pauses (see above)
     video.pause()
     retapEl.classList.remove('hidden'); retapEl.classList.add('flex')
     tapCanvas.classList.remove('hidden')
@@ -80,6 +86,7 @@ export function renderProcessing(app: App, root: HTMLElement): void {
         const p = Math.round(f * 100)
         barEl.style.width = `${p}%`; pctEl.textContent = `Tracking… ${p}%`
       })
+      pass1Over = true
       app.data.path = smoothPath(raw, 5)
 
       // Pass 2 (pose): a SECOND decode pass — pose alone (~37 ms/frame on iPhone)
@@ -91,19 +98,27 @@ export function renderProcessing(app: App, root: HTMLElement): void {
         const pose = await loadPose()
         const xs: (number | null)[] = []
         const frames: PoseFrame[] = []
-        await playFrames(video, start, end, (v, tMs, t) => {
+        // Warm-up: MediaPipe VIDEO mode is stateful — the person DETECTOR often
+        // misses a lifter already bent over the bar, but once locked (usually
+        // while they stand/approach) the TRACKER follows the crouch fine. So the
+        // pose pass starts ~2s before the trim start to lock on, and keeps
+        // nothing from the warm-up window. (Validated on a real clip: a cold
+        // start at the setup crouch lost pose for the entire early pull.)
+        const warmStart = Math.max(0, start - 2)
+        await playFrames(video, warmStart, end, (v, tMs, t) => {
           // A per-frame detect() can throw (e.g. iOS WebGL context loss when the
           // tab is backgrounded mid-pass). Swallow to null so the rVFC callback
           // never rejects — otherwise playFrames would never resolve and the
           // processing screen would hang. All-null → plate-tap fallback → result.
           try {
             const lm = pose.detect(v, tMs)[0]
+            if (t < start) return // warm-up frame: lock the tracker, keep nothing
             if (lm) {
               const f = slimFrame(lm, t)
               frames.push(f)
               xs.push(midfootXFromFrame(f.lm, v.videoWidth))
             } else xs.push(null)
-          } catch { xs.push(null) }
+          } catch { if (t >= start) xs.push(null) }
         }, (f) => {
           const p = Math.round(f * 100)
           barEl.style.width = `${p}%`; pctEl.textContent = `Reading body position… ${p}%`

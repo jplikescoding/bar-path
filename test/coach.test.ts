@@ -175,6 +175,36 @@ describe('analyzeHipRise', () => {
     expect(analyzeHipRise(rising(), blind, H)).toBeNull()
   })
 
+  it('judges the ASCENT even when the clip ends with the bar set back down lower', () => {
+    // rise 900→300 by t=4, then lower to 905 by t=7 (set-down slightly below start —
+    // typical real clip). The pull start must be the pre-ascent bottom, not the set-down.
+    const pts = rising()
+    for (let t = 4.1; t <= 7.001; t += 0.1) pts.push({ x: 100, y: 300 + 605 * ((t - 4) / 3), t: +t.toFixed(2) })
+    const hip = (t: number) => t <= 1 ? 0.80 : 0.80 - 0.35 * Math.min(1, (t - 1) / 0.75)
+    const cue = analyzeHipRise(pts, framesWithHip(hip), H)
+    expect(cue).not.toBeNull()
+    expect(cue!.startT).toBeLessThan(1.2) // pull start ≈ t=1, not the t=7 set-down
+    expect(cue!.fired).toBe(true)
+  })
+
+  it('anchors the pull start where the bar LEAVES the floor, not the first bottom frame', () => {
+    // Real clip shape: bar sits on the floor t=0..5 (setup), pull 5..8; pose only
+    // detects the lifter from t=3 on. The window must start at ~t=5, inside pose
+    // coverage — anchoring at t=0 would put the start slice in the pose gap → null.
+    const pts: PathPoint[] = []
+    for (let t = 0; t <= 5.001; t += 0.1) pts.push({ x: 100, y: 900, t: +t.toFixed(2) })
+    for (let t = 5.1; t <= 8.001; t += 0.1) pts.push({ x: 100, y: 900 - 600 * ((t - 5) / 3), t: +t.toFixed(2) })
+    const fs: PoseFrame[] = []
+    for (let t = 3; t <= 8.001; t += 0.1) {
+      const lm: PoseLm[] = []
+      lm[23] = { x: 0.5, y: 0.6, vis: 1 }; lm[24] = { x: 0.5, y: 0.6, vis: 1 }
+      fs.push({ t: +t.toFixed(2), lm })
+    }
+    const cue = analyzeHipRise(pts, fs, H)
+    expect(cue).not.toBeNull()
+    expect(cue!.startT).toBeGreaterThan(4.5)
+  })
+
   it('null when the bar never really rises (no pull to judge)', () => {
     const flat: PathPoint[] = Array.from({ length: 40 }, (_, i) => ({ x: 100, y: 900 - i, t: i / 10 }))
     expect(analyzeHipRise(flat, framesWithHip(() => 0.5), H)).toBeNull()

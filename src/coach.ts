@@ -134,18 +134,30 @@ export function analyzeHipRise(
   const minHipRisePx = (opts.minHipRiseFrac ?? 0.02) * videoHeight
   const minRomPx = (opts.minRomFrac ?? 0.15) * videoHeight
 
-  // Pull start = the bar's bottom (max screen y; first occurrence on a plateau).
-  let bottom = path[0]
-  let topY = path[0].y
+  // The judged movement is the ASCENT to the bar's highest point. Real clips
+  // often end with the bar lowered back down (sometimes below the start), so the
+  // bottom is measured AT OR BEFORE the top — never the set-down. And the bar can
+  // sit on the floor for seconds of setup, so the pull START is the LAST moment
+  // the bar is still at bottom level (within 5% of ROM) before the ascent — not
+  // the first bottom frame (validated on a real clip: anchoring at frame 0 put
+  // the measuring window in dead setup time / a pose gap).
+  let top = path[0]
+  for (const p of path) if (p.y < top.y) top = p
+  let bottomY = -Infinity
   for (const p of path) {
-    if (p.y > bottom.y) bottom = p
-    if (p.y < topY) topY = p.y
+    if (p.t > top.t) break
+    if (p.y > bottomY) bottomY = p.y
   }
-  const rom = bottom.y - topY
+  const rom = bottomY - top.y
   if (rom < minRomPx) return null
+  let bottom = path[0]
+  for (const p of path) {
+    if (p.t > top.t) break
+    if (p.y >= bottomY - 0.05 * rom) bottom = p
+  }
 
-  // Window end = first frame at/after the bottom where the bar has risen windowFrac·ROM.
-  const risenY = bottom.y - windowFrac * rom
+  // Window end = first frame at/after the pull start where the bar has risen windowFrac·ROM.
+  const risenY = bottomY - windowFrac * rom
   let end: PathPoint | null = null
   for (const p of path) {
     if (p.t < bottom.t) continue
