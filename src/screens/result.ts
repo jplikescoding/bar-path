@@ -61,8 +61,10 @@ export function renderResult(app: App, root: HTMLElement): void {
 
   // Bar-speed series for the velocity card (needs a real track to mean anything).
   const vel = path.length >= 8 ? verticalVelocity(path) : []
-  const velMin = vel.length ? Math.min(...vel.map((v) => v.vy)) : 0
-  const velMax = vel.length ? Math.max(...vel.map((v) => v.vy)) : 1
+  // Domain always includes 0 so the zero hairline is on-canvas and the scale
+  // can't degenerate on a near-constant trace.
+  const velMin = vel.length ? Math.min(0, ...vel.map((v) => v.vy)) : 0
+  const velMax = vel.length ? Math.max(0, ...vel.map((v) => v.vy)) : 1
   const velSpan = Math.max(1e-6, velMax - velMin)
   // SVG y for a velocity (viewBox 1000×120, 6px breathing room top/bottom).
   const velY = (vy: number) => 6 + (1 - (vy - velMin) / velSpan) * 108
@@ -115,7 +117,7 @@ export function renderResult(app: App, root: HTMLElement): void {
           <div class="flex flex-col gap-1">
             <span class="eyebrow">Bar speed</span>
             <div class="flex items-baseline gap-2">
-              <span class="readout text-3xl font-semibold leading-none">${fmtSpeed(velMax)}<span class="text-base text-[var(--muted)] ml-0.5">${speedUnit}</span></span>
+              <span class="readout text-3xl font-semibold leading-none">${velMax > 0 ? fmtSpeed(velMax) : '—'}<span class="text-base text-[var(--muted)] ml-0.5">${speedUnit}</span></span>
               <span class="eyebrow text-[var(--faint)]">peak</span>
             </div>
           </div>
