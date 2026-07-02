@@ -287,13 +287,15 @@ export function renderResult(app: App, root: HTMLElement): void {
       actions.querySelector('#new')!.addEventListener('click', () => { app.reset(); leave('upload') })
     } else {
       actions.innerHTML = `
-        <div class="flex gap-2">
-          <button id="library" class="btn btn-amber flex-1">Library</button>
-          <button id="export" class="btn btn-ghost flex-1">Export</button>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="library" class="btn btn-amber">Library</button>
+          <button id="export" class="btn btn-ghost">Export</button>
+          <button id="new" class="btn btn-quiet">New</button>
           <button id="delete" class="btn btn-quiet">Delete</button>
         </div>`
       actions.querySelector('#library')!.addEventListener('click', () => leave('library'))
       actions.querySelector('#export')!.addEventListener('click', doExport)
+      actions.querySelector('#new')!.addEventListener('click', () => { app.reset(); leave('upload') })
       actions.querySelector('#delete')!.addEventListener('click', async () => {
         const btn = actions.querySelector<HTMLButtonElement>('#delete')!
         btn.disabled = true; btn.textContent = 'Deleting…'
