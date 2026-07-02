@@ -1,76 +1,76 @@
 # Bar Path Tracker — Handoff / Status
 
-Last updated: 2026-06-29 (Phase 1 bar-off-midfoot BUILT; in PR; next = device-test → Phase 2).
+Last updated: 2026-07-02 (overnight build: Phase 1 MERGED + Phase 1.5 polish + Phase 2 pose cues +
+velocity graph ALL SHIPPED to production; next = JP device-test → Phase 2 validation on clip library).
 
 ## ►► START HERE next session
-**Phase 1 (deadlift bar-off-midfoot cue) is BUILT and in a PR** on branch
-`feat/phase1-bar-off-midfoot`. 29/29 tests, build green, full SDD review (per-task + opus
-whole-branch) done; the one Critical found (a pose-failure hang) is fixed. **Next = JP device-test,
-then Phase 2.**
+**Everything through Phase 2 is MERGED and LIVE** (PRs #4–#7, deploys green). Shipped overnight
+2026-07-02 (plan: `docs/superpowers/plans/2026-07-02-overnight-phase2-delight.md`):
 
-What shipped (spec: `docs/superpowers/specs/2026-06-29-phase1-bar-off-midfoot-design.md`,
-plan: `docs/superpowers/plans/2026-06-29-phase1-bar-off-midfoot.md`):
-- **Vendored MediaPipe same-origin** under `public/mediapipe/` (no CDN, offline); `src/pose.ts`
-  repointed off CDN, still lazy-loaded only on the processing screen.
-- **`src/coach.ts`** (pure, 10 tests) — `analyzeBarDrift` fuses the bar path with a pose-derived
-  **robust median midfoot x**; pose-midfoot → plate-tap fallback → silence. Calibrated clips flag
-  at **≥5 cm**; **uncalibrated stays SILENT** (no actionable px number — shows a "size a plate" hint).
-- **Second pose pass** in `src/screens/processing.ts` (`playFrames` in `capture.ts`, no OpenCV) —
-  pose can't share the tracker's real-time loop (~37 ms/frame). Strictly additive: any pose
-  load/per-frame failure still reaches the result screen.
-- **Cue UI** in `result.ts`/`overlay.ts`: cue card + tappable scrub tick at the peak-drift frame +
-  a minimal amber midfoot line + bar-to-midfoot gap drawn at that frame. **No skeleton** (Phase 2).
-- **Persisted** with saved lifts (optional fields; older records unaffected).
+- **Phase 1 (bar-off-midfoot cue)** — merged as validated on-device (PR #4).
+- **Phase 1.5 — all four device-test findings fixed (PR #5):** midfoot = **heel↔toe midpoint**
+  (ankle dropped, heel bias gone) · **threshold gates TONE not visibility** (calibrated clips
+  always get a midfoot card — green "Bar path ✓" under 5 cm, amber nudge at/above; uncalibrated
+  still silent) · **post-save New** action (Library/Export/New/Delete grid) · scale-capture
+  **redo hint + persistent "· scale ✓"** status on the trim readout.
+- **Phase 2 (PR #6):** pose pass stores slim per-frame landmarks (`AppData.poseFrames`, z dropped) ·
+  **early-hip-rise cue** (`analyzeHipRise`, pure: hip-rise ÷ bar-rise over the bar's first 25% of
+  ROM; unitless → works uncalibrated; fires ≥1.5×; positive green card when clean — silence only
+  when pose can't see the pull) · **toggleable skeleton overlay** (chalk bones synced to scrub,
+  amber hips during a fired window, dims low confidence, hides across >0.35s pose gaps) · all
+  persisted with saved lifts. **At most one amber cue per review** (report §5.4): hip demotes to
+  chalk if the drift nudge fired. Build slider DEFERRED (needs JP's UX call; it only widens
+  thresholds — one-line once wanted).
+- **Velocity graph + polish (PR #7):** `verticalVelocity` (pure) + a **Bar speed card** — peak
+  concentric m/s when calibrated (real VBT numbers), live now-value, amber cursor riding playback,
+  tap/drag the graph to seek · **~22 MB off the deploy** (unused `vision_wasm_module_internal`
+  pair removed; pose-smoke verified the kept pair loads) · `rise` screen-enter on processing.
 
-### ►► JP device-test checklist (do before/with PR merge)
-Desktop OK for logic (Edge `msedge`, headed, or `npm run preview`); iPhone Safari for real perf.
-- [ ] Real **side-on deadlift + sized plate** → cue card shows a sensible cm number; tapping it
-      seeks to the visibly worst frame; amber midfoot line + gap draw there; scrub tick at that moment.
-- [ ] A **clean rep** → no cue card, no marker.
-- [ ] **Uncalibrated** clip (no plate sized) → "Size a plate…" hint, NO number.
-- [ ] Pose assets load **only on the processing screen** (Network shows `mediapipe/*` during
-      "Reading body position…", not on first paint); **airplane-mode reload** still works.
-- [ ] **Save** a lift with a cue → reopen from library → cue/tick/marker intact. Old saved lift
-      reopens fine with no cue.
-- [ ] iPhone: pose pass completes in reasonable time; foot landmark survives shoes/plate occlusion.
+**Three hard-won runtime lessons (do not re-trip):**
+1. **MediaPipe VIDEO mode is stateful — cold starts miss a bent-over lifter.** The person
+   *detector* fails on the setup crouch; the *tracker* follows fine once locked upright. The pose
+   pass therefore starts `POSE_WARMUP_S` (2 s, in `coach.ts` with the other tuning knobs) before
+   the trim start and discards warm-up frames. Without this the hip cue was silent on a real
+   trimmed rep (pose lost for the entire early pull).
+2. **Orphaned-retap race (fixed):** a tracking loss on the clip's final frames raced the
+   'ended'-driven finish of pass 1 — the dangling re-tap paused the video under the pose pass and
+   froze processing forever. `reTap` is a no-op once `pass1Over`.
+3. **Hip-rise window anchoring:** the pull start is the LAST bottom-level point before the ascent
+   (bar can sit in setup for seconds; clips often end with the bar set down lower than it started).
 
-### Deferred / known (after device-test)
-- **Drop ~22 MB unused wasm:** `public/mediapipe/wasm/vision_wasm_module_internal.{js,wasm}` are
-  unused extras from `cp -r` (FilesetResolver only uses `vision_wasm_internal` / `_nosimd_`).
-  `git rm` them to shrink the deploy — **only after** device-test confirms pose loads with the kept pair.
-- **Tilt-correction limitation:** the cue is computed on the UNROTATED path. `verticalAngleRad` is
-  currently dormant (always null), so nothing wrong ships. If tilt-correction is ever re-enabled,
-  route the cue (path + midfoot ref) through the same rotation (commented in `processing.ts`).
-- Cue copy says **"off midfoot"** (neutral), not the spec's "forward" — direction can't be claimed
-  without knowing facing. Facing-detection from heel/toe is a possible Phase 2 add.
+### ►► JP device-test checklist (iPhone Safari, Private tab; app is live)
+- [ ] Clean **calibrated** rep → green "Bar path ✓ — stayed over midfoot" card (chalk tick/marker);
+      drifty rep → amber nudge. Only ever ONE amber card at a time.
+- [ ] **Hip timing** card on a trimmed side-on rep: ratio sane, tap seeks to the moment, green
+      positive card on a clean pull. Untrimmed multi-rep clips may stay silent (it judges the
+      ascent to the bar's highest point — trim to one rep).
+- [ ] **Skeleton** chip: bones track the body, hide when pose loses you, amber hips at a fired moment.
+- [ ] **Bar speed** card: peak m/s plausible (~0.3–1.2 for real pulls), cursor rides playback,
+      tap/drag the graph seeks. Uncalibrated shows px/s.
+- [ ] Post-save **New**; scale **redo** hint + "· scale ✓"; processing takes ~2 s longer than
+      before (pose warm-up) — acceptable?
+- [ ] **Airplane-mode reload** still works after the wasm removal (SW may serve a stale cached
+      pair on old installs — a fresh Private-tab load exercises the new set).
+- [ ] Save → reopen from library: cue cards + skeleton + velocity all intact; old records fine.
 
-### Phase 2 (next build cycle)
-**early-hip-rise cue** (hip-vs-bar vertical rate — net-new insight pose unlocks) + the **toggleable
-skeleton overlay** + the one-time **build slider** (widens tolerances only). Guardrails unchanged
-(report §5–§7): body type only *widens tolerances*, never prescriptive verdicts; never spine/3D from 2D.
+### Next build cycle (in order)
+1. **Phase 2 validation/tuning on JP's clip library** — heel↔toe weighting, the 5 cm drift flag,
+   hip-rise `fireRatio`/`windowFrac`/`POSE_WARMUP_S` (all in `coach.ts` opts/consts). Pipeline
+   validation works on roughly-side clips; absolute-cm needs square side-on (tripod pending).
+2. **Build slider** (one-time, skippable, widens tolerances only — report §5.1) once JP wants it.
+3. **Phase 3 (report §7):** side-on squat coaching behind an angle prompt; facing-detection from
+   heel/toe could upgrade cue copy to "forward off midfoot".
 
-**UX: make the pose work visible even on a good rep (JP feedback 2026-06-29).** Phase 1's cue is
-*conditionally* surfaced — it only appears when plate-sized AND drift ≥5 cm — so a clean or
-uncalibrated rep looks identical to Phase 0 and the user can't tell the pose pass did anything.
-Rework so the **threshold gates TONE, not visibility**: once a plate is sized, always show a
-midfoot card — a positive "✓ Bar stayed over midfoot (drifted only N cm)" for small drift, and the
-amber "Bar drifted N cm off midfoot" nudge at/above threshold. Keep uncalibrated silent (still no
-real number). Also revisit the **5 cm flag** — it's a report heuristic (~2 in, "above landmark
-noise"), not empirically tuned; pick the on/off-tone boundary from real clips. `analyzeBarDrift`
-already takes `opts.flagCm`, so the threshold is one call-site change.
+Design report (source of truth): `docs/body-analysis-exploration.md` (PR #3).
 
-**Phase 2 data set (JP, 2026-06-29):** JP will provide his full deadlift clip library as the
-tuning/validation set. Caveat: he has **no truly square side-on clips yet — needs a tripod/stand**
-to film directly to the side. Use what exists for *pipeline* validation (foot-landmark survival,
-midfoot placement, cue fire/silent, marker placement, rough threshold) — those hold on a
-roughly-side clip; reserve **absolute-cm** trust for square side-on footage (plate face-on, bar +
-midfoot co-planar). I.e. don't wait on the stand to start Phase 2 validation.
-
-Design report (source of truth for the roadmap): `docs/body-analysis-exploration.md` (PR #3).
-Spike spec: `docs/superpowers/specs/2026-06-29-pose-spike-design.md`.
-
-Also still pending (smaller): **device-test** the Phase 0 cm calibration + peak/avg readout on
-a real side-on deadlift clip (the pose spike used a clip but didn't exercise the cm flow).
+### Known / deferred
+- **Tilt-correction parity:** cue + skeleton are computed/drawn on the UNROTATED frame;
+  `verticalAngleRad` is dormant (always null). If re-enabled, rotate cue path, midfoot ref AND
+  skeleton landmarks together (notes in `processing.ts` + `overlay.ts`).
+- A cosmetic 404 fires mid-flow in the local harness (not on page load; likely favicon/sourcemap);
+  pre-existing, no functional impact.
+- Multi-rep clips: hip cue judges the ascent to the bar's highest point; midfoot cue uses the whole
+  trimmed range. The app's model remains "trim to one rep".
 
 ## What this is
 A fully **client-side** web app that tracks a barbell's bar path in a lifting video
@@ -124,7 +124,13 @@ review it (play/pause/scrub/slow-mo), and export an overlaid `.mp4`.
   app in **Edge** (channel `msedge`, HEADED — headless doesn't fire requestVideoFrameCallback;
   bundled Chromium/WebKit lack H.264 so can't decode the `.mp4` test clips). It uploads a real
   clip, taps the plate, tracks, and screenshots/inspects results. Kill stray `msedge`/`node`
-  between runs; use a fresh `--port` each run.
+  between runs; use a fresh `--port` each run (a stale preview server on the port makes vite
+  hop ports and the harness time out).
+- **`scripts/e2e-phase2.mjs`** is the full-feature run: scrubs to a mid-clip rep, drags the
+  plate scale, tracks (both passes), asserts cue cards/skeleton chip/saved actions, saves,
+  reopens from the library, and dumps `scripts/hip-dump.json` (raw path + poseFrames) for
+  offline analysis of the pure functions. `scripts/debug-hip.mjs` is the lighter probe.
+  `window.__app` is exposed by `main.ts` for these scripts.
 - Real device testing is JP's: he tests on **iPhone Safari, Private tab** (Private avoids the
   Pages HTML cache so he gets the latest deploy).
 
@@ -191,7 +197,7 @@ the plumb-line-vs-drifting-path glyph and the result screen's drift-from-plumb g
 - SW now does **network-first for HTML navigations** (cache `bp-v2`) so fresh deploys
   show immediately; assets/fonts/opencv stay cache-first for offline.
 
-## Phase 1 device-test UX findings (JP, 2026-06-29) — fix next (Phase-0 polish, NOT part of PR #4)
+## Phase 1 device-test UX findings (JP, 2026-06-29) — ALL FIXED in PR #5 (2026-07-02)
 1. **Scale capture — discoverability, not mechanic.** JP first thought the tap-then-drag-to-rim
    gesture was unusable, then reconsidered after learning it: click-drag works, and you redo by
    drawing a new circle. So the earlier "decouple place/size/reposition" redesign is NOT wanted —
@@ -220,7 +226,7 @@ the plumb-line-vs-drifting-path glyph and the result screen's drift-from-plumb g
    *where* form broke down (JP's idea). Scoped in PR #3; **Phase 0 (cm drift) DONE**. Next is
    the average metric (#6), then pose cues (Phase 1 — see "START HERE"). Squat coaching still
    needs a side-on filming prompt first (backlog #1).
-5. Possible later: velocity graph synced to playback (like one reference app), draw tools.
+5. Velocity graph synced to playback — DONE (PR #7, 2026-07-02). Draw tools still possible later.
 6. **Drift metric: average option** — the result screen shows *peak* side-to-side travel
    (extremes: farthest-left↔farthest-right = `left + right`). JP wants an **average**
    deviation too (mean horizontal distance from plumb), likely as a toggle between
