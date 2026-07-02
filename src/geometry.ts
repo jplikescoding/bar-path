@@ -47,6 +47,32 @@ export function pxToCm(px: number, plateDiameterPx: number): number {
   return px * (PLATE_DIAMETER_CM / plateDiameterPx)
 }
 
+// Instantaneous vertical bar speed per path point, positive = bar moving UP
+// (screen y grows downward). Central difference, then a moving average over vy
+// (the position path is already smoothed, but differentiation re-amplifies
+// jitter). Degenerate spacing (duplicate timestamps) carries the previous value.
+export interface VelocityPoint { t: number; vy: number }
+
+export function verticalVelocity(path: PathPoint[], smoothWindow = 5): VelocityPoint[] {
+  if (path.length < 2) return []
+  const raw: number[] = new Array(path.length)
+  for (let i = 0; i < path.length; i++) {
+    const a = path[Math.max(0, i - 1)]
+    const b = path[Math.min(path.length - 1, i + 1)]
+    const dt = b.t - a.t
+    raw[i] = dt > 0 ? -(b.y - a.y) / dt : (i > 0 ? raw[i - 1] : 0)
+  }
+  const half = Math.floor(smoothWindow / 2)
+  return path.map((p, i) => {
+    let sum = 0, n = 0
+    for (let j = i - half; j <= i + half; j++) {
+      if (j < 0 || j >= raw.length) continue
+      sum += raw[j]; n++
+    }
+    return { t: p.t, vy: sum / n }
+  })
+}
+
 // `range` is the peak excursion (farthest-left↔farthest-right). `meanAbs` is the
 // average distance from the plumb line across the whole rep — a smoother, more
 // representative measure than the single widest point.
