@@ -36,6 +36,7 @@ async function reopen(app: App, saved: SavedAnalysis): Promise<void> {
     // 'nudge' here (once), so every consumer downstream can trust cue.tone.
     cue: saved.cue ? { ...saved.cue, tone: saved.cue.tone ?? 'nudge' } : null,
     poseFrames: saved.poseFrames ?? null,
+    hipCue: saved.hipCue ?? null,
   }
   app.go('result')
 }

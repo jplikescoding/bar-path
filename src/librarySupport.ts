@@ -1,5 +1,5 @@
 import { pxToCm, type PathPoint } from './geometry'
-import type { BarDriftCue, MidfootEstimate, PoseFrame } from './coach'
+import type { BarDriftCue, HipRiseCue, MidfootEstimate, PoseFrame } from './coach'
 
 // A persisted, completed bar-path analysis. Mirrors AppData plus the bits we need
 // to render a library list (name/date/thumbnail/drift) and to reopen later.
@@ -19,6 +19,7 @@ export interface SavedAnalysis {
   cue?: BarDriftCue | null            // bar-off-midfoot cue; optional — older records lack it
   poseMidfoot?: MidfootEstimate | null
   poseFrames?: PoseFrame[] | null     // slim per-frame pose (skeleton overlay); optional — older records lack it
+  hipCue?: HipRiseCue | null          // early-hip-rise timing cue; optional — older records lack it
 }
 
 const MONTHS = [

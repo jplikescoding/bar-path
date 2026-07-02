@@ -3,7 +3,7 @@ import { loadOpenCV } from '../opencv'
 import { createTracker } from '../tracker'
 import { playAndProcess, playFrames } from '../capture'
 import { loadPose } from '../pose'
-import { midfootXFromFrame, robustMidfoot, analyzeBarDrift, slimFrame, type PoseFrame } from '../coach'
+import { midfootXFromFrame, robustMidfoot, analyzeBarDrift, analyzeHipRise, slimFrame, type PoseFrame } from '../coach'
 import { smoothPath, type PathPoint } from '../geometry'
 
 export function renderProcessing(app: App, root: HTMLElement): void {
@@ -122,6 +122,7 @@ export function renderProcessing(app: App, root: HTMLElement): void {
       app.data.cue = analyzeBarDrift(
         app.data.path, app.data.poseMidfoot, app.data.plateDiameterPx, app.data.seed!.x,
       )
+      app.data.hipCue = analyzeHipRise(app.data.path, app.data.poseFrames, video.videoHeight)
       app.go('result')
     } finally {
       tracker.delete()

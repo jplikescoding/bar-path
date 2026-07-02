@@ -32,7 +32,23 @@ export function renderResult(app: App, root: HTMLElement): void {
       }
   const startT = app.data.startTime
   const endT = Math.max(startT + 0.1, path[path.length - 1]?.t ?? app.data.endTime ?? video.duration)
-  const tickPct = cue ? Math.max(0, Math.min(100, ((cue.frameT - startT) / (endT - startT)) * 100)) : 0
+  const pct = (t: number) => Math.max(0, Math.min(100, ((t - startT) / (endT - startT)) * 100))
+  const tickPct = cue ? pct(cue.frameT) : 0
+
+  const hipCue = app.data.hipCue
+  const hipUi = hipCue && hipCue.fired
+    ? {
+        eyebrow: 'Hip timing', eyebrowStyle: 'color:var(--amber)',
+        headline: `Hips rose ${hipCue.ratio.toFixed(1)}× faster than the bar off the floor`,
+        body: `Push the floor away — chest and hips rise together. <span class="text-[var(--amber)]">Tap to see the moment →</span>`,
+        tick: 'var(--amber)',
+      }
+    : {
+        eyebrow: 'Hip timing ✓', eyebrowStyle: 'color:rgba(34,255,85,0.75)',
+        headline: 'Hips and bar rose together',
+        body: `Off the floor, your hips didn’t outrun the bar. <span class="text-[var(--chalk)]">Tap to review the pull →</span>`,
+        tick: 'rgba(230,235,240,0.6)',
+      }
 
   // Deviation gauge geometry: scale each side against the larger of the two so
   // the worse direction fills its half of the track.
@@ -61,6 +77,7 @@ export function renderResult(app: App, root: HTMLElement): void {
       <div class="relative">
         <input id="scrub" type="range" min="0" max="1000" value="1000" class="w-full" />
         ${cue ? `<div class="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 pointer-events-none" style="left:${tickPct}%;background:${toneUi.tick}"></div>` : ''}
+        ${hipCue ? `<div class="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 pointer-events-none" style="left:${pct(hipCue.frameT)}%;background:${hipUi.tick}"></div>` : ''}
       </div>
 
       <div class="card p-4 flex flex-col gap-3">
@@ -104,6 +121,13 @@ export function renderResult(app: App, root: HTMLElement): void {
         ${cue.confidence === 'low' ? '<span class="text-xs text-[var(--faint)]">Measured against your starting line — film square to the side for a midfoot read.</span>' : ''}
       </button>` : (!calibrated ? `
       <div class="card p-4 text-sm text-[var(--muted)]">Size a plate on the setup screen to check bar drift off midfoot.</div>` : '')}
+
+      ${hipCue ? `
+      <button id="hip-card" class="card p-4 flex flex-col gap-1.5 text-left active:bg-[var(--surface-2)]">
+        <span class="eyebrow" style="${hipUi.eyebrowStyle}">${hipUi.eyebrow}</span>
+        <span class="readout text-xl font-semibold leading-tight text-[var(--chalk)]">${hipUi.headline}</span>
+        <span class="text-sm text-[var(--muted)]">${hipUi.body}</span>
+      </button>` : ''}
 
       <div id="actions"></div>
       <div id="saved-msg" class="text-center text-sm text-[var(--amber)] h-5"></div>
@@ -179,6 +203,14 @@ export function renderResult(app: App, root: HTMLElement): void {
       setScrubFromTime(cue.frameT)
     })
   }
+  const hipCard = root.querySelector<HTMLButtonElement>('#hip-card')
+  if (hipCard && hipCue) {
+    hipCard.addEventListener('click', () => {
+      pause()
+      video.currentTime = hipCue.frameT
+      setScrubFromTime(hipCue.frameT)
+    })
+  }
   video.addEventListener('seeked', () => { if (video.paused && !exporting) render(video.currentTime) }, { signal: ac.signal })
 
   const savedMsg = root.querySelector<HTMLDivElement>('#saved-msg')!
@@ -242,6 +274,7 @@ export function renderResult(app: App, root: HTMLElement): void {
       cue: app.data.cue,
       poseMidfoot: app.data.poseMidfoot,
       poseFrames: app.data.poseFrames,
+      hipCue: app.data.hipCue,
     }
     await saveAnalysis(record)
     app.data.savedId = record.id
