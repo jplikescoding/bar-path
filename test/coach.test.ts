@@ -59,19 +59,24 @@ describe('analyzeBarDrift', () => {
   // plate: 90 px = 45 cm → 0.5 cm/px. 10 px = 5 cm.
   const plate = 90
 
-  it('fires off the pose midfoot when drift >= 5 cm, with frameT at the peak', () => {
+  it('nudges off the pose midfoot when drift >= 5 cm, with frameT at the peak', () => {
     const cue = analyzeBarDrift(path, { x: 100, frames: 30, conf: 0.95 }, plate, 100)
     expect(cue).not.toBeNull()
     expect(cue!.refSource).toBe('pose-midfoot')
+    expect(cue!.tone).toBe('nudge')
     expect(cue!.driftCm).toBeCloseTo(5)
     expect(cue!.driftPx).toBeCloseTo(10)
     expect(cue!.frameT).toBe(0.5)
     expect(cue!.confidence).toBe('ok')
   })
 
-  it('stays silent when drift is below the 5 cm flag threshold', () => {
+  it('below the 5 cm threshold a calibrated clip gets a GOOD-tone cue (visible, positive)', () => {
     const flat: PathPoint[] = [{ x: 100, y: 0, t: 0 }, { x: 104, y: 0, t: 1 }] // 4 px = 2 cm
-    expect(analyzeBarDrift(flat, { x: 100, frames: 30, conf: 0.95 }, plate, 100)).toBeNull()
+    const cue = analyzeBarDrift(flat, { x: 100, frames: 30, conf: 0.95 }, plate, 100)
+    expect(cue).not.toBeNull()
+    expect(cue!.tone).toBe('good')
+    expect(cue!.driftCm).toBeCloseTo(2)
+    expect(cue!.frameT).toBe(1) // peak |x−refX| is still reported
   })
 
   it('falls back to the plate-tap line when pose midfoot is null/weak', () => {
@@ -90,6 +95,11 @@ describe('analyzeBarDrift', () => {
     expect(cue).not.toBeNull()
     expect(cue!.driftCm).toBeNull()
     expect(cue!.driftPx).toBeCloseTo(10)
+    expect(cue!.tone).toBe('nudge')
+  })
+
+  it('uncalibrated px opt-in stays silent BELOW flagPx (no good tone without a real number)', () => {
+    expect(analyzeBarDrift(path, { x: 100, frames: 30, conf: 0.95 }, null, 100, { flagPx: 50 })).toBeNull()
   })
 
   it('returns null on empty input (total & safe)', () => {

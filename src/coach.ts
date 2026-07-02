@@ -8,6 +8,7 @@ export interface MidfootEstimate { x: number; frames: number; conf: number }
 // The single deadlift coaching cue. driftCm is null when no plate scale is set
 // (UI shows px). refSource records whether the reference was the pose midfoot or
 // the plate-tap fallback line; confidence is 'ok' only for a calibrated pose-midfoot cue.
+// tone: 'good' = drift under the flag threshold (positive card), 'nudge' = at/above.
 export interface BarDriftCue {
   driftCm: number | null
   driftPx: number
@@ -15,6 +16,7 @@ export interface BarDriftCue {
   refX: number
   refSource: 'pose-midfoot' | 'plate-tap'
   confidence: 'ok' | 'low'
+  tone: 'good' | 'nudge'
 }
 
 // BlazePose heels (29,30) and toes (31,32). Midfoot = the heel↔toe midpoint —
@@ -92,17 +94,18 @@ export function analyzeBarDrift(
 
   const calibrated = plateDiameterPx != null && plateDiameterPx > 0
   const driftCm = calibrated ? pxToCm(driftPx, plateDiameterPx!) : null
-  // Calibrated → flag on cm (the real, actionable threshold). Uncalibrated → stay
-  // SILENT by default (a px drift is resolution-dependent and not actionable); the
-  // UI prompts the user to size a plate. A caller may opt into px firing by passing
-  // opts.flagPx explicitly (keeps the px path testable/usable).
-  let fires: boolean
-  if (calibrated) fires = driftCm! >= flagCm
-  else if (opts.flagPx != null) fires = driftPx >= opts.flagPx
-  else fires = false
-  if (!fires) return null
+  // Threshold gates TONE, not visibility (JP, 2026-06-29): a calibrated clip always
+  // gets a midfoot cue — positive below flagCm, a nudge at/above — so the pose pass
+  // is visible even on a clean rep. Uncalibrated stays SILENT (a px drift is
+  // resolution-dependent and not actionable); a caller may opt into px NUDGES by
+  // passing opts.flagPx explicitly (below flagPx stays silent — no good tone
+  // without a real number).
+  let tone: BarDriftCue['tone']
+  if (calibrated) tone = driftCm! >= flagCm ? 'nudge' : 'good'
+  else if (opts.flagPx != null && driftPx >= opts.flagPx) tone = 'nudge'
+  else return null
 
   const confidence: BarDriftCue['confidence'] =
     refSource === 'pose-midfoot' && calibrated ? 'ok' : 'low'
-  return { driftCm, driftPx, frameT, refX, refSource, confidence }
+  return { driftCm, driftPx, frameT, refX, refSource, confidence, tone }
 }

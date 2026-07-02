@@ -61,16 +61,18 @@ export function drawReview(
   }
 }
 
-// Draw the bar-off-midfoot evidence at the peak-drift frame: an amber dashed
-// midfoot reference line + the horizontal bar-to-midfoot gap at the bar's height.
+// Draw the bar-off-midfoot evidence at the peak-drift frame: a dashed midfoot
+// reference line + the horizontal bar-to-midfoot gap at the bar's height.
 // Called by the result screen AFTER drawReview (which clears the canvas), only
-// when the current time is at the cue's peak frame. No skeleton (that is Phase 2).
+// when the current time is at the cue's peak frame. Amber for a nudge; a good-tone
+// cue passes muted chalk (amber stays action-only).
 export function drawDriftMarker(
   ctx: CanvasRenderingContext2D,
   path: PathPoint[],
-  cue: { refX: number; frameT: number },
+  cue: { refX: number; frameT: number; color?: string },
 ): void {
   if (!path.length) return
+  const color = cue.color ?? '#FFB020'
   // Bar position at the peak frame = the path point nearest cue.frameT.
   let bar = path[0], best = Infinity
   for (const p of path) {
@@ -79,13 +81,13 @@ export function drawDriftMarker(
   }
   const h = ctx.canvas.height
   ctx.save()
-  // Midfoot reference line (amber, dashed — distinct from the muted plumb line).
-  ctx.strokeStyle = '#FFB020'; ctx.lineWidth = 2; ctx.setLineDash([6, 5])
+  // Midfoot reference line (dashed — distinct from the muted plumb line).
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([6, 5])
   ctx.beginPath(); ctx.moveTo(cue.refX, 0); ctx.lineTo(cue.refX, h); ctx.stroke()
-  // The drift itself: a solid amber gap from midfoot to the bar at the bar's height.
+  // The drift itself: a solid gap from midfoot to the bar at the bar's height.
   ctx.setLineDash([]); ctx.lineWidth = 3
   ctx.beginPath(); ctx.moveTo(cue.refX, bar.y); ctx.lineTo(bar.x, bar.y); ctx.stroke()
-  ctx.fillStyle = '#FFB020'
+  ctx.fillStyle = color
   ctx.beginPath(); ctx.arc(bar.x, bar.y, 5, 0, Math.PI * 2); ctx.fill()
   ctx.restore()
 }
