@@ -55,7 +55,8 @@ export function renderSetPoint(app: App, root: HTMLElement): void {
   const updateTrim = () => {
     const s = app.data.seed ? fmt(app.data.startTime) : '—'
     const e = app.data.endTime != null ? fmt(app.data.endTime) : 'end of clip'
-    trimEl.textContent = `Tracking ${s} → ${e}`
+    // The scale state rides the readout line so it stays visible after the hint moves on.
+    trimEl.textContent = `Tracking ${s} → ${e}${app.data.plateDiameterPx != null ? ' · scale ✓' : ''}`
   }
   updateTrim()
 
@@ -103,10 +104,10 @@ export function renderSetPoint(app: App, root: HTMLElement): void {
     if (movedScreen > 10) {
       const p = toCanvas(e.clientX, e.clientY)
       app.data.plateDiameterPx = 2 * Math.hypot(p.x - app.data.seed.x, p.y - app.data.seed.y)
-      hint.textContent = 'Scale set ✓ — drift will show in cm. Scrub to the end and "Set end here", or hit Track.'
+      hint.textContent = 'Scale set ✓ — drift will read in cm. Draw a new circle anytime to redo it.'
     } else {
       hint.textContent = app.data.plateDiameterPx != null
-        ? 'Tracking that plate (scale set). Scrub to the end and "Set end here", or hit Track.'
+        ? 'Tracking that plate (scale kept ✓). Drag to the rim again to re-size, or hit Track.'
         : 'Tracking that plate. Drag from the bar to the plate’s rim to show drift in cm — or just hit Track.'
     }
     drawMarks(); updateTrim()

@@ -15,6 +15,21 @@ export function renderResult(app: App, root: HTMLElement): void {
   const cueUnit = cue?.driftCm != null ? 'cm' : 'px'
   const cueVal = cue ? (cue.driftCm != null ? cue.driftCm.toFixed(1) : cue.driftPx.toFixed(0)) : ''
   const cueRef = cue?.refSource === 'pose-midfoot' ? 'midfoot' : 'your starting line'
+  // One place for the per-tone styling: a nudge is amber (action); a good rep
+  // reads in the data colors (green headline, chalk marker/tick) — never amber.
+  const toneUi = cue && cue.tone === 'good'
+    ? {
+        eyebrow: 'Bar path ✓', eyebrowStyle: 'color:rgba(34,255,85,0.75)',
+        headline: `Bar stayed over ${cueRef}`,
+        body: `Drifted only ${cueVal}${cueUnit} at its widest. <span class="text-[var(--chalk)]">Tap to see the moment →</span>`,
+        tick: 'rgba(230,235,240,0.6)', marker: 'rgba(230,235,240,0.8)',
+      }
+    : {
+        eyebrow: 'Bar drift off midfoot', eyebrowStyle: 'color:var(--amber)',
+        headline: `Bar drifted ${cueVal}${cueUnit} off ${cueRef}`,
+        body: `Keeping it over midfoot will feel stronger off the floor. <span class="text-[var(--amber)]">Tap to see the moment →</span>`,
+        tick: 'var(--amber)', marker: '#FFB020',
+      }
   const startT = app.data.startTime
   const endT = Math.max(startT + 0.1, path[path.length - 1]?.t ?? app.data.endTime ?? video.duration)
   const tickPct = cue ? Math.max(0, Math.min(100, ((cue.frameT - startT) / (endT - startT)) * 100)) : 0
@@ -45,7 +60,7 @@ export function renderResult(app: App, root: HTMLElement): void {
       </div>
       <div class="relative">
         <input id="scrub" type="range" min="0" max="1000" value="1000" class="w-full" />
-        ${cue ? `<div class="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[var(--amber)] pointer-events-none" style="left:${tickPct}%"></div>` : ''}
+        ${cue ? `<div class="absolute top-1/2 -translate-y-1/2 w-0.5 h-4 pointer-events-none" style="left:${tickPct}%;background:${toneUi.tick}"></div>` : ''}
       </div>
 
       <div class="card p-4 flex flex-col gap-3">
@@ -83,9 +98,9 @@ export function renderResult(app: App, root: HTMLElement): void {
 
       ${cue ? `
       <button id="cue-card" class="card p-4 flex flex-col gap-1.5 text-left active:bg-[var(--surface-2)]">
-        <span class="eyebrow text-[var(--amber)]">Bar drift off midfoot</span>
-        <span class="readout text-xl font-semibold leading-tight text-[var(--chalk)]">Bar drifted ${cueVal}${cueUnit} off ${cueRef}</span>
-        <span class="text-sm text-[var(--muted)]">Keeping it over midfoot will feel stronger off the floor. <span class="text-[var(--amber)]">Tap to see the moment →</span></span>
+        <span class="eyebrow" style="${toneUi.eyebrowStyle}">${toneUi.eyebrow}</span>
+        <span class="readout text-xl font-semibold leading-tight text-[var(--chalk)]">${toneUi.headline}</span>
+        <span class="text-sm text-[var(--muted)]">${toneUi.body}</span>
         ${cue.confidence === 'low' ? '<span class="text-xs text-[var(--faint)]">Measured against your starting line — film square to the side for a midfoot read.</span>' : ''}
       </button>` : (!calibrated ? `
       <div class="card p-4 text-sm text-[var(--muted)]">Size a plate on the setup screen to check bar drift off midfoot.</div>` : '')}
@@ -114,9 +129,10 @@ export function renderResult(app: App, root: HTMLElement): void {
   let exporting = false
   const ac = new AbortController()
 
+  const marker = cue ? { refX: cue.refX, frameT: cue.frameT, color: toneUi.marker } : null
   const render = (t: number) => {
     drawReview(ctx, path, t, refX)
-    if (cue && Math.abs(t - cue.frameT) < 0.12) drawDriftMarker(ctx, path, { refX: cue.refX, frameT: cue.frameT })
+    if (cue && marker && Math.abs(t - cue.frameT) < 0.12) drawDriftMarker(ctx, path, marker)
   }
   const setScrubFromTime = (t: number) => { scrub.value = String(Math.round(((t - startT) / (endT - startT)) * 1000)) }
 
@@ -275,13 +291,15 @@ export function renderResult(app: App, root: HTMLElement): void {
       actions.querySelector('#new')!.addEventListener('click', () => { app.reset(); leave('upload') })
     } else {
       actions.innerHTML = `
-        <div class="flex gap-2">
-          <button id="library" class="btn btn-amber flex-1">Library</button>
-          <button id="export" class="btn btn-ghost flex-1">Export</button>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="library" class="btn btn-amber">Library</button>
+          <button id="export" class="btn btn-ghost">Export</button>
+          <button id="new" class="btn btn-quiet">New</button>
           <button id="delete" class="btn btn-quiet">Delete</button>
         </div>`
       actions.querySelector('#library')!.addEventListener('click', () => leave('library'))
       actions.querySelector('#export')!.addEventListener('click', doExport)
+      actions.querySelector('#new')!.addEventListener('click', () => { app.reset(); leave('upload') })
       actions.querySelector('#delete')!.addEventListener('click', async () => {
         const btn = actions.querySelector<HTMLButtonElement>('#delete')!
         btn.disabled = true; btn.textContent = 'Deleting…'

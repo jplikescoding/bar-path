@@ -8,6 +8,7 @@ export interface MidfootEstimate { x: number; frames: number; conf: number }
 // The single deadlift coaching cue. driftCm is null when no plate scale is set
 // (UI shows px). refSource records whether the reference was the pose midfoot or
 // the plate-tap fallback line; confidence is 'ok' only for a calibrated pose-midfoot cue.
+// tone: 'good' = drift under the flag threshold (positive card), 'nudge' = at/above.
 export interface BarDriftCue {
   driftCm: number | null
   driftPx: number
@@ -15,29 +16,35 @@ export interface BarDriftCue {
   refX: number
   refSource: 'pose-midfoot' | 'plate-tap'
   confidence: 'ok' | 'low'
+  tone: 'good' | 'nudge'
 }
 
-// BlazePose camera-side foot landmarks: ankles (27,28), heels (29,30), toes (31,32).
-// In a side-on view the near/far foot overlap in x, so averaging the visible ones
-// gives a stable vertical foot line ≈ midfoot.
-const FOOT_LANDMARKS = [27, 28, 29, 30, 31, 32]
+// BlazePose heels (29,30) and toes (31,32). Midfoot = the heel↔toe midpoint —
+// anatomy, not landmark averaging: the ankle sits OVER the heel, so including it
+// biased the line toward the heel (validated on a real clip, 2026-06-29).
+const HEELS = [29, 30]
+const TOES = [31, 32]
 
 // Reduce one pose frame to a midfoot x in PIXELS (landmarks are normalized 0..1).
-// Returns null if fewer than 2 foot landmarks clear the visibility floor.
+// Needs at least one visible heel AND one visible toe; otherwise null.
 export function midfootXFromFrame(
   landmarks: Landmark[],
   videoWidth: number,
   minVis = 0.5,
 ): number | null {
-  let sum = 0, n = 0
-  for (const i of FOOT_LANDMARKS) {
-    const lm = landmarks[i]
-    if (!lm) continue
-    if (lm.visibility != null && lm.visibility < minVis) continue
-    sum += lm.x; n++
+  const avg = (idxs: number[]): number | null => {
+    let sum = 0, n = 0
+    for (const i of idxs) {
+      const lm = landmarks[i]
+      if (!lm) continue
+      if (lm.visibility != null && lm.visibility < minVis) continue
+      sum += lm.x; n++
+    }
+    return n ? sum / n : null
   }
-  if (n < 2) return null
-  return (sum / n) * videoWidth
+  const heel = avg(HEELS), toe = avg(TOES)
+  if (heel == null || toe == null) return null
+  return ((heel + toe) / 2) * videoWidth
 }
 
 // Median of the per-frame xs that were detected; conf = contributed / total.
@@ -87,17 +94,18 @@ export function analyzeBarDrift(
 
   const calibrated = plateDiameterPx != null && plateDiameterPx > 0
   const driftCm = calibrated ? pxToCm(driftPx, plateDiameterPx!) : null
-  // Calibrated → flag on cm (the real, actionable threshold). Uncalibrated → stay
-  // SILENT by default (a px drift is resolution-dependent and not actionable); the
-  // UI prompts the user to size a plate. A caller may opt into px firing by passing
-  // opts.flagPx explicitly (keeps the px path testable/usable).
-  let fires: boolean
-  if (calibrated) fires = driftCm! >= flagCm
-  else if (opts.flagPx != null) fires = driftPx >= opts.flagPx
-  else fires = false
-  if (!fires) return null
+  // Threshold gates TONE, not visibility (JP, 2026-06-29): a calibrated clip always
+  // gets a midfoot cue — positive below flagCm, a nudge at/above — so the pose pass
+  // is visible even on a clean rep. Uncalibrated stays SILENT (a px drift is
+  // resolution-dependent and not actionable); a caller may opt into px NUDGES by
+  // passing opts.flagPx explicitly (below flagPx stays silent — no good tone
+  // without a real number).
+  let tone: BarDriftCue['tone']
+  if (calibrated) tone = driftCm! >= flagCm ? 'nudge' : 'good'
+  else if (opts.flagPx != null && driftPx >= opts.flagPx) tone = 'nudge'
+  else return null
 
   const confidence: BarDriftCue['confidence'] =
     refSource === 'pose-midfoot' && calibrated ? 'ok' : 'low'
-  return { driftCm, driftPx, frameT, refX, refSource, confidence }
+  return { driftCm, driftPx, frameT, refX, refSource, confidence, tone }
 }

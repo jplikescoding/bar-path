@@ -32,7 +32,9 @@ async function reopen(app: App, saved: SavedAnalysis): Promise<void> {
     savedId: saved.id,
     plateDiameterPx: saved.plateDiameterPx ?? null,
     poseMidfoot: saved.poseMidfoot ?? null,
-    cue: saved.cue ?? null,
+    // Records saved before tone existed only persisted FIRED cues → normalize to
+    // 'nudge' here (once), so every consumer downstream can trust cue.tone.
+    cue: saved.cue ? { ...saved.cue, tone: saved.cue.tone ?? 'nudge' } : null,
   }
   app.go('result')
 }
