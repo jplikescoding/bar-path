@@ -17,6 +17,24 @@ describe('midfootXFromFrame', () => {
   it('returns null when foot landmarks are below the visibility floor', () => {
     expect(midfootXFromFrame(frameWithFootX(0.5, 0.1), 1000)).toBeNull()
   })
+  it('is the heel↔toe midpoint — the ankle does not pull the result', () => {
+    const lm: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0, visibility: 0 }))
+    lm[27] = { x: 0.10, y: 0.8, z: 0, visibility: 1 } // ankle far left — must be ignored
+    lm[29] = { x: 0.40, y: 0.8, z: 0, visibility: 1 } // heel
+    lm[31] = { x: 0.60, y: 0.8, z: 0, visibility: 1 } // toe
+    expect(midfootXFromFrame(lm, 1000)).toBeCloseTo(500) // (0.4+0.6)/2 × 1000
+  })
+  it('returns null when no heel is visible (toe alone is not a midfoot)', () => {
+    const lm: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0, visibility: 0 }))
+    lm[27] = { x: 0.4, y: 0.8, z: 0, visibility: 1 } // ankle
+    lm[31] = { x: 0.6, y: 0.8, z: 0, visibility: 1 } // toe
+    expect(midfootXFromFrame(lm, 1000)).toBeNull()
+  })
+  it('returns null when no toe is visible', () => {
+    const lm: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0, visibility: 0 }))
+    lm[29] = { x: 0.4, y: 0.8, z: 0, visibility: 1 } // heel only
+    expect(midfootXFromFrame(lm, 1000)).toBeNull()
+  })
 })
 
 describe('robustMidfoot', () => {

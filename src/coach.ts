@@ -17,27 +17,32 @@ export interface BarDriftCue {
   confidence: 'ok' | 'low'
 }
 
-// BlazePose camera-side foot landmarks: ankles (27,28), heels (29,30), toes (31,32).
-// In a side-on view the near/far foot overlap in x, so averaging the visible ones
-// gives a stable vertical foot line ≈ midfoot.
-const FOOT_LANDMARKS = [27, 28, 29, 30, 31, 32]
+// BlazePose heels (29,30) and toes (31,32). Midfoot = the heel↔toe midpoint —
+// anatomy, not landmark averaging: the ankle sits OVER the heel, so including it
+// biased the line toward the heel (validated on a real clip, 2026-06-29).
+const HEELS = [29, 30]
+const TOES = [31, 32]
 
 // Reduce one pose frame to a midfoot x in PIXELS (landmarks are normalized 0..1).
-// Returns null if fewer than 2 foot landmarks clear the visibility floor.
+// Needs at least one visible heel AND one visible toe; otherwise null.
 export function midfootXFromFrame(
   landmarks: Landmark[],
   videoWidth: number,
   minVis = 0.5,
 ): number | null {
-  let sum = 0, n = 0
-  for (const i of FOOT_LANDMARKS) {
-    const lm = landmarks[i]
-    if (!lm) continue
-    if (lm.visibility != null && lm.visibility < minVis) continue
-    sum += lm.x; n++
+  const avg = (idxs: number[]): number | null => {
+    let sum = 0, n = 0
+    for (const i of idxs) {
+      const lm = landmarks[i]
+      if (!lm) continue
+      if (lm.visibility != null && lm.visibility < minVis) continue
+      sum += lm.x; n++
+    }
+    return n ? sum / n : null
   }
-  if (n < 2) return null
-  return (sum / n) * videoWidth
+  const heel = avg(HEELS), toe = avg(TOES)
+  if (heel == null || toe == null) return null
+  return ((heel + toe) / 2) * videoWidth
 }
 
 // Median of the per-frame xs that were detected; conf = contributed / total.
