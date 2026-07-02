@@ -241,6 +241,7 @@ export function renderResult(app: App, root: HTMLElement): void {
       plateDiameterPx: app.data.plateDiameterPx,
       cue: app.data.cue,
       poseMidfoot: app.data.poseMidfoot,
+      poseFrames: app.data.poseFrames,
     }
     await saveAnalysis(record)
     app.data.savedId = record.id

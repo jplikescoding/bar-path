@@ -1,6 +1,24 @@
 import { horizontalDrift, pxToCm, type PathPoint } from './geometry'
 import type { Landmark } from './pose'
 
+// A slimmed BlazePose landmark kept per frame: normalized x/y + visibility.
+// z is dropped (nothing here may claim depth from 2D — report guardrail) and
+// values are rounded so persisted poseFrames stay small in IndexedDB.
+export interface PoseLm { x: number; y: number; vis?: number }
+// One pose detection: t = the frame's mediaTime (seconds, same clock as PathPoint.t).
+export interface PoseFrame { t: number; lm: PoseLm[] }
+
+// Reduce a raw MediaPipe detection to a PoseFrame (4dp positions, 2dp visibility).
+export function slimFrame(landmarks: Landmark[], t: number): PoseFrame {
+  const r4 = (v: number) => Math.round(v * 1e4) / 1e4
+  return {
+    t,
+    lm: landmarks.map((l) => l.visibility == null
+      ? { x: r4(l.x), y: r4(l.y) }
+      : { x: r4(l.x), y: r4(l.y), vis: Math.round(l.visibility * 100) / 100 }),
+  }
+}
+
 // One robust midfoot reference: the median camera-side foot x (pixels) plus how
 // many frames contributed and the fraction that did (confidence).
 export interface MidfootEstimate { x: number; frames: number; conf: number }
@@ -28,7 +46,7 @@ const TOES = [31, 32]
 // Reduce one pose frame to a midfoot x in PIXELS (landmarks are normalized 0..1).
 // Needs at least one visible heel AND one visible toe; otherwise null.
 export function midfootXFromFrame(
-  landmarks: Landmark[],
+  landmarks: PoseLm[],
   videoWidth: number,
   minVis = 0.5,
 ): number | null {
@@ -37,7 +55,7 @@ export function midfootXFromFrame(
     for (const i of idxs) {
       const lm = landmarks[i]
       if (!lm) continue
-      if (lm.visibility != null && lm.visibility < minVis) continue
+      if (lm.vis != null && lm.vis < minVis) continue
       sum += lm.x; n++
     }
     return n ? sum / n : null

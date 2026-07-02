@@ -52,7 +52,10 @@ export function playFrames(
   video: HTMLVideoElement,
   startTime: number,
   endTime: number | null,
-  onFrame: (video: HTMLVideoElement, timestampMs: number) => void | Promise<void>,
+  // timestampMs: monotonic rVFC clock (for MediaPipe VIDEO mode); mediaTime: the
+  // frame's position in the clip (same clock as PathPoint.t — for aligning pose
+  // frames with the bar path).
+  onFrame: (video: HTMLVideoElement, timestampMs: number, mediaTime: number) => void | Promise<void>,
   onProgress: (frac: number) => void,
 ): Promise<void> {
   const end = endTime ?? video.duration
@@ -62,7 +65,7 @@ export function playFrames(
     const finish = () => { if (!finished) { finished = true; video.pause(); resolve() } }
     const onTick = async (now: number, meta: any) => {
       const t = meta?.mediaTime ?? video.currentTime
-      await onFrame(video, now)
+      await onFrame(video, now, t)
       onProgress(Math.min(1, (t - startTime) / span))
       if (!video.ended && t < end) video.requestVideoFrameCallback(onTick)
       else finish()

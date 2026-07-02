@@ -3,7 +3,7 @@ import { loadOpenCV } from '../opencv'
 import { createTracker } from '../tracker'
 import { playAndProcess, playFrames } from '../capture'
 import { loadPose } from '../pose'
-import { midfootXFromFrame, robustMidfoot, analyzeBarDrift } from '../coach'
+import { midfootXFromFrame, robustMidfoot, analyzeBarDrift, slimFrame, type PoseFrame } from '../coach'
 import { smoothPath, type PathPoint } from '../geometry'
 
 export function renderProcessing(app: App, root: HTMLElement): void {
@@ -90,20 +90,26 @@ export function renderProcessing(app: App, root: HTMLElement): void {
         barEl.style.width = '0%'
         const pose = await loadPose()
         const xs: (number | null)[] = []
-        await playFrames(video, start, end, (v, tMs) => {
+        const frames: PoseFrame[] = []
+        await playFrames(video, start, end, (v, tMs, t) => {
           // A per-frame detect() can throw (e.g. iOS WebGL context loss when the
           // tab is backgrounded mid-pass). Swallow to null so the rVFC callback
           // never rejects — otherwise playFrames would never resolve and the
           // processing screen would hang. All-null → plate-tap fallback → result.
           try {
             const lm = pose.detect(v, tMs)[0]
-            xs.push(lm ? midfootXFromFrame(lm, v.videoWidth) : null)
+            if (lm) {
+              const f = slimFrame(lm, t)
+              frames.push(f)
+              xs.push(midfootXFromFrame(f.lm, v.videoWidth))
+            } else xs.push(null)
           } catch { xs.push(null) }
         }, (f) => {
           const p = Math.round(f * 100)
           barEl.style.width = `${p}%`; pctEl.textContent = `Reading body position… ${p}%`
         })
         app.data.poseMidfoot = robustMidfoot(xs)
+        app.data.poseFrames = frames.length ? frames : null
       } catch (err) {
         console.error('pose pass failed; cue falls back to the plate-tap line', err)
         app.data.poseMidfoot = null

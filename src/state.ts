@@ -1,5 +1,5 @@
 import type { PathPoint } from './geometry'
-import type { BarDriftCue, MidfootEstimate } from './coach'
+import type { BarDriftCue, MidfootEstimate, PoseFrame } from './coach'
 
 export type Screen = 'upload' | 'setpoint' | 'processing' | 'result' | 'library' | 'posetest'
 
@@ -23,6 +23,9 @@ export interface AppData {
   poseMidfoot: MidfootEstimate | null
   // The deadlift bar-off-midfoot coaching cue, or null when none fired.
   cue: BarDriftCue | null
+  // Slim per-frame pose landmarks from the pose pass (skeleton overlay +
+  // hip-rise cue); null when pose was unavailable.
+  poseFrames: PoseFrame[] | null
 }
 
 export function initialData(): AppData {
@@ -38,5 +41,6 @@ export function initialData(): AppData {
     plateDiameterPx: null,
     poseMidfoot: null,
     cue: null,
+    poseFrames: null,
   }
 }

@@ -1,12 +1,24 @@
 import { describe, it, expect } from 'vitest'
-import { midfootXFromFrame, robustMidfoot, analyzeBarDrift } from '../src/coach'
+import { midfootXFromFrame, robustMidfoot, analyzeBarDrift, slimFrame, type PoseLm } from '../src/coach'
 import type { Landmark } from '../src/pose'
 import type { PathPoint } from '../src/geometry'
 
+describe('slimFrame', () => {
+  it('rounds x/y to 4dp, vis to 2dp, and drops z', () => {
+    const lms: Landmark[] = [{ x: 0.123456, y: 0.654321, z: 9, visibility: 0.876 }]
+    expect(slimFrame(lms, 1.5)).toEqual({ t: 1.5, lm: [{ x: 0.1235, y: 0.6543, vis: 0.88 }] })
+  })
+  it('omits vis when the landmark has no visibility', () => {
+    const f = slimFrame([{ x: 0.5, y: 0.5, z: 0 }], 0)
+    expect(f.lm[0]).toEqual({ x: 0.5, y: 0.5 })
+    expect('vis' in f.lm[0]).toBe(false)
+  })
+})
+
 // 33-landmark frame with foot landmarks (indices 27..32) set to a given normalized x.
-function frameWithFootX(x: number, visibility = 0.9): Landmark[] {
-  const lm: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0, visibility: 0 }))
-  for (const i of [27, 28, 29, 30, 31, 32]) lm[i] = { x, y: 0.8, z: 0, visibility }
+function frameWithFootX(x: number, vis = 0.9): PoseLm[] {
+  const lm: PoseLm[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, vis: 0 }))
+  for (const i of [27, 28, 29, 30, 31, 32]) lm[i] = { x, y: 0.8, vis }
   return lm
 }
 
@@ -18,21 +30,21 @@ describe('midfootXFromFrame', () => {
     expect(midfootXFromFrame(frameWithFootX(0.5, 0.1), 1000)).toBeNull()
   })
   it('is the heel↔toe midpoint — the ankle does not pull the result', () => {
-    const lm: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0, visibility: 0 }))
-    lm[27] = { x: 0.10, y: 0.8, z: 0, visibility: 1 } // ankle far left — must be ignored
-    lm[29] = { x: 0.40, y: 0.8, z: 0, visibility: 1 } // heel
-    lm[31] = { x: 0.60, y: 0.8, z: 0, visibility: 1 } // toe
+    const lm: PoseLm[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, vis: 0 }))
+    lm[27] = { x: 0.10, y: 0.8, vis: 1 } // ankle far left — must be ignored
+    lm[29] = { x: 0.40, y: 0.8, vis: 1 } // heel
+    lm[31] = { x: 0.60, y: 0.8, vis: 1 } // toe
     expect(midfootXFromFrame(lm, 1000)).toBeCloseTo(500) // (0.4+0.6)/2 × 1000
   })
   it('returns null when no heel is visible (toe alone is not a midfoot)', () => {
-    const lm: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0, visibility: 0 }))
-    lm[27] = { x: 0.4, y: 0.8, z: 0, visibility: 1 } // ankle
-    lm[31] = { x: 0.6, y: 0.8, z: 0, visibility: 1 } // toe
+    const lm: PoseLm[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, vis: 0 }))
+    lm[27] = { x: 0.4, y: 0.8, vis: 1 } // ankle
+    lm[31] = { x: 0.6, y: 0.8, vis: 1 } // toe
     expect(midfootXFromFrame(lm, 1000)).toBeNull()
   })
   it('returns null when no toe is visible', () => {
-    const lm: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0, visibility: 0 }))
-    lm[29] = { x: 0.4, y: 0.8, z: 0, visibility: 1 } // heel only
+    const lm: PoseLm[] = Array.from({ length: 33 }, () => ({ x: 0, y: 0, vis: 0 }))
+    lm[29] = { x: 0.4, y: 0.8, vis: 1 } // heel only
     expect(midfootXFromFrame(lm, 1000)).toBeNull()
   })
 })
