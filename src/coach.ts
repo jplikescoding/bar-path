@@ -53,7 +53,15 @@ export interface BarDriftCue {
   refSource: 'pose-midfoot' | 'plate-tap'
   confidence: 'ok' | 'low'
   tone: 'good' | 'nudge'
+  // Which way the peak drift went relative to the LIFTER (toes = forward), set
+  // only when facing is known AND the reference is the pose midfoot (Phase 3).
+  direction?: 'forward' | 'backward'
 }
+
+// Which lift the user said this clip is (setup-screen prompt). Deadlift is the
+// default and keeps every pre-Phase-3 behavior; squat unlocks squat-worded cues
+// only when the user also confirmed a side-on angle (report §7 Phase 3 gate).
+export type LiftType = 'deadlift' | 'squat'
 
 // BlazePose heels (29,30) and toes (31,32). Midfoot = the heel↔toe midpoint —
 // anatomy, not landmark averaging: the ankle sits OVER the heel, so including it
@@ -83,6 +91,39 @@ export function robustMidfoot(
   const xs = perFrameX.filter((v): v is number => v != null)
   if (xs.length < minFrames) return null
   return { x: median(xs), frames: xs.length, conf: xs.length / perFrameX.length }
+}
+
+// ——— Facing detection (Phase 3) ——————————————————————————————————————————————
+// Which way the lifter points, from heel/toe x-ordering alone (side-on: toes sit
+// clearly left or right of the heels; end-on: feet point at the camera and the
+// spread collapses below the margin → null, so this self-gates on bad angles).
+// Purely 2D x-ordering — no depth/3D claims (report guardrail).
+
+export type Facing = 'left' | 'right'
+
+// Median per-frame toe−heel spread (normalized x) must clear this to call a
+// facing. Tuning knob (heuristic awaiting JP's clip library, like the rest).
+export const FACING_MARGIN = 0.02
+
+export function detectFacing(
+  poseFrames: PoseFrame[] | null,
+  opts: { minFrames?: number; margin?: number; minVis?: number } = {},
+): Facing | null {
+  if (!poseFrames?.length) return null
+  const minFrames = opts.minFrames ?? 5
+  const margin = opts.margin ?? FACING_MARGIN
+  const minVis = opts.minVis ?? 0.5
+  const deltas: number[] = []
+  for (const f of poseFrames) {
+    const heel = meanVisible(f.lm, HEELS, 'x', minVis)
+    const toe = meanVisible(f.lm, TOES, 'x', minVis)
+    if (heel == null || toe == null) continue
+    deltas.push(toe - heel)
+  }
+  if (deltas.length < minFrames) return null
+  const m = median(deltas)
+  if (Math.abs(m) < margin) return null
+  return m > 0 ? 'right' : 'left'
 }
 
 // ——— Early-hip-rise cue (Phase 2) ———————————————————————————————————————————
@@ -125,6 +166,7 @@ export function analyzeHipRise(
     minFrames?: number      // pose frames with a visible hip needed inside the window
     minHipRiseFrac?: number // hip rise (× videoHeight) below this never fires (noise floor)
     minRomFrac?: number     // bar ROM (× videoHeight) below this = no real pull → silence
+    lift?: LiftType         // squat anchors the window at the HOLE, not the floor
   } = {},
 ): HipRiseCue | null {
   if (!path.length || !poseFrames?.length || videoHeight <= 0) return null
@@ -134,19 +176,31 @@ export function analyzeHipRise(
   const minHipRisePx = (opts.minHipRiseFrac ?? 0.02) * videoHeight
   const minRomPx = (opts.minRomFrac ?? 0.15) * videoHeight
 
-  // The judged movement is the ASCENT to the bar's highest point. Real clips
-  // often end with the bar lowered back down (sometimes below the start), so the
-  // bottom is measured AT OR BEFORE the top — never the set-down. And the bar can
-  // sit on the floor for seconds of setup, so the pull START is the LAST moment
-  // the bar is still at bottom level (within 5% of ROM) before the ascent — not
-  // the first bottom frame (validated on a real clip: anchoring at frame 0 put
-  // the measuring window in dead setup time / a pose gap).
-  let top = path[0]
-  for (const p of path) if (p.y < top.y) top = p
-  let bottomY = -Infinity
-  for (const p of path) {
-    if (p.t > top.t) break
-    if (p.y > bottomY) bottomY = p.y
+  // The judged movement is an ASCENT; each lift anchors it differently.
+  // DEADLIFT (default): the ascent ends at the bar's highest point; the bar can
+  // sit on the floor for seconds of setup and clips often end with the bar set
+  // back down, so the bottom is measured AT OR BEFORE the top — never the
+  // set-down (validated on a real clip: anchoring at frame 0 put the measuring
+  // window in dead setup time / a pose gap).
+  // SQUAT: the clip STARTS at standing height, so the deadlift anchoring would
+  // misread it. The ascent starts at the bar's DEEPEST point (the hole) and
+  // ends at its highest point AFTER the hole.
+  let top: PathPoint
+  let bottomY: number
+  if (opts.lift === 'squat') {
+    let deepest = path[0]
+    for (const p of path) if (p.y > deepest.y) deepest = p
+    bottomY = deepest.y
+    top = deepest
+    for (const p of path) if (p.t >= deepest.t && p.y < top.y) top = p
+  } else {
+    top = path[0]
+    for (const p of path) if (p.y < top.y) top = p
+    bottomY = -Infinity
+    for (const p of path) {
+      if (p.t > top.t) break
+      if (p.y > bottomY) bottomY = p.y
+    }
   }
   const rom = bottomY - top.y
   if (rom < minRomPx) return null
@@ -215,7 +269,7 @@ export function analyzeBarDrift(
   midfoot: MidfootEstimate | null,
   plateDiameterPx: number | null,
   plumbX: number,
-  opts: { flagCm?: number; flagPx?: number; minConf?: number } = {},
+  opts: { flagCm?: number; flagPx?: number; minConf?: number; facing?: Facing | null } = {},
 ): BarDriftCue | null {
   if (!path.length) return null
   const flagCm = opts.flagCm ?? 5
@@ -232,10 +286,10 @@ export function analyzeBarDrift(
   // horizontalDrift gives the extreme magnitude; scan for the frame of peak |x−refX|.
   const drift = horizontalDrift(path, refX)
   const driftPx = Math.max(drift.maxLeft, drift.maxRight)
-  let frameT = path[0].t, peak = -1
+  let frameT = path[0].t, peak = -1, peakSigned = 0
   for (const p of path) {
     const d = Math.abs(p.x - refX)
-    if (d > peak) { peak = d; frameT = p.t }
+    if (d > peak) { peak = d; peakSigned = p.x - refX; frameT = p.t }
   }
 
   const calibrated = plateDiameterPx != null && plateDiameterPx > 0
@@ -253,5 +307,73 @@ export function analyzeBarDrift(
 
   const confidence: BarDriftCue['confidence'] =
     refSource === 'pose-midfoot' && calibrated ? 'ok' : 'low'
-  return { driftCm, driftPx, frameT, refX, refSource, confidence, tone }
+  const cue: BarDriftCue = { driftCm, driftPx, frameT, refX, refSource, confidence, tone }
+  // Forward/backward wording needs BOTH a known facing and a real midfoot
+  // reference — the plate-tap fallback line says nothing about the feet.
+  if (opts.facing && refSource === 'pose-midfoot' && peakSigned !== 0) {
+    const towardToes = (peakSigned > 0) === (opts.facing === 'right')
+    cue.direction = towardToes ? 'forward' : 'backward'
+  }
+  return cue
+}
+
+// ——— Squat depth readout (Phase 3) ———————————————————————————————————————————
+// A MEASUREMENT, not a verdict (report §4.3: sub-parallel depth is normal for
+// many builds — flagging it is the false-positive trap; §7 Phase 3 still wants
+// depth surfaced). At the bar's deepest moment, how far the hip landmarks sit
+// below/above the knee landmarks. Rendered as a neutral data card — never amber,
+// never a prescription, and never any "you can't squat deep" claim.
+
+const KNEES = [25, 26]
+
+// Pose frames within ± this many seconds of the deepest bar point contribute
+// (median over the window attenuates landmark jitter at one frame).
+export const DEPTH_WINDOW_S = 0.15
+// |hip−knee| inside this fraction of videoHeight reads as "level with the knee"
+// — landmark noise must not manufacture a below/above call. Tuning knob.
+export const DEPTH_LEVEL_BAND_FRAC = 0.008
+
+export interface SquatDepthCue {
+  dropPx: number         // hip below knee at the deepest bar point; + = below
+  dropCm: number | null  // signed, when plate-calibrated
+  where: 'below' | 'level' | 'above'
+  frameT: number         // the deepest bar moment (seek target)
+}
+
+// Pure & total. Null whenever the hips/knees aren't clearly visible around the
+// bottom — silence over a wrong number (report guardrail).
+export function analyzeSquatDepth(
+  path: PathPoint[],
+  poseFrames: PoseFrame[] | null,
+  videoHeight: number,
+  plateDiameterPx: number | null,
+  opts: { windowS?: number; levelBandFrac?: number; minFrames?: number; minVis?: number } = {},
+): SquatDepthCue | null {
+  if (!path.length || !poseFrames?.length || videoHeight <= 0) return null
+  const windowS = opts.windowS ?? DEPTH_WINDOW_S
+  const band = (opts.levelBandFrac ?? DEPTH_LEVEL_BAND_FRAC) * videoHeight
+  const minFrames = opts.minFrames ?? 3
+  const minVis = opts.minVis ?? 0.5
+
+  let deepest = path[0]
+  for (const p of path) if (p.y > deepest.y) deepest = p
+
+  const drops: number[] = []
+  for (const f of poseFrames) {
+    if (Math.abs(f.t - deepest.t) > windowS) continue
+    const hipY = meanVisible(f.lm, HIPS, 'y', minVis)
+    const kneeY = meanVisible(f.lm, KNEES, 'y', minVis)
+    if (hipY == null || kneeY == null) continue
+    drops.push((hipY - kneeY) * videoHeight) // screen y grows down: + = hip below knee
+  }
+  if (drops.length < minFrames) return null
+
+  const dropPx = median(drops)
+  const calibrated = plateDiameterPx != null && plateDiameterPx > 0
+  return {
+    dropPx,
+    dropCm: calibrated ? pxToCm(dropPx, plateDiameterPx!) : null,
+    where: dropPx > band ? 'below' : dropPx < -band ? 'above' : 'level',
+    frameT: deepest.t,
+  }
 }
