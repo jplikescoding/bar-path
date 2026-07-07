@@ -93,43 +93,32 @@ export function renderResult(app: App, root: HTMLElement): void {
   const rightW = (drift.maxRight / maxAbs) * 50
 
   root.innerHTML = `
-    <div class="min-h-screen flex flex-col gap-3 p-4 max-w-md mx-auto w-full rise">
-      <div class="text-center">
+    <div class="min-h-screen flex flex-col gap-3 p-4 pt-0 max-w-md mx-auto w-full rise">
+      <div class="text-center pt-4">
         <p class="eyebrow">Step 3 — Review</p>
       </div>
-      <div id="stage" class="frame"></div>
+      <div class="sticky top-0 z-10 flex flex-col gap-3 -mx-4 px-4 pt-2 pb-3 border-b border-[var(--line)] bg-[var(--bg)]">
+        <div id="stage" class="frame"></div>
 
-      <div class="flex items-center gap-3 justify-center">
-        <button id="play" class="btn btn-amber btn-icon" aria-label="Play">▶</button>
-        <button id="speed" class="chip" aria-label="Playback speed">1×</button>
-        <button id="sound" class="chip" aria-label="Toggle sound" aria-pressed="false">🔇</button>
-        ${app.data.poseFrames?.length ? '<button id="skel" class="chip" aria-label="Toggle skeleton" aria-pressed="false">Skeleton</button>' : ''}
-      </div>
-      <div class="relative">
-        <input id="scrub" type="range" min="0" max="1000" value="1000" class="w-full" />
-        ${cue ? tickHtml(cue.frameT, toneUi.tick) : ''}
-        ${hipCue ? tickHtml(hipCue.frameT, hipUi.tick) : ''}
-      </div>
-
-      ${vel.length ? `
-      <div class="card p-4 flex flex-col gap-2">
-        <div class="flex items-start justify-between">
-          <div class="flex flex-col gap-1">
-            <span class="eyebrow">Bar speed</span>
-            <div class="flex items-baseline gap-2">
-              <span class="readout text-3xl font-semibold leading-none">${velMax > 0 ? fmtSpeed(velMax) : '—'}<span class="text-base text-[var(--muted)] ml-0.5">${speedUnit}</span></span>
-              <span class="eyebrow text-[var(--faint)]">peak</span>
-            </div>
-          </div>
-          <span id="vel-now" class="readout text-sm text-[var(--muted)]"></span>
+        <div class="flex items-center gap-3 justify-center">
+          <button id="play" class="btn btn-amber btn-icon" aria-label="Play">▶</button>
+          <button id="speed" class="chip" aria-label="Playback speed">1×</button>
+          <button id="sound" class="chip" aria-label="Toggle sound" aria-pressed="false">🔇</button>
+          ${app.data.poseFrames?.length ? '<button id="skel" class="chip" aria-label="Toggle skeleton" aria-pressed="false">Skeleton</button>' : ''}
         </div>
-        <svg id="vel-svg" viewBox="0 0 1000 120" preserveAspectRatio="none" class="w-full h-20 touch-none cursor-pointer" aria-label="Bar speed over the rep — tap to jump playback">
-          <line x1="0" x2="1000" y1="${velY(0).toFixed(1)}" y2="${velY(0).toFixed(1)}" stroke="var(--line-bright)" stroke-width="1" vector-effect="non-scaling-stroke" />
-          <polyline points="${velPts}" fill="none" stroke="#22ff55" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity="0.9" />
-          <line id="vel-cursor" x1="1000" x2="1000" y1="0" y2="120" stroke="var(--amber)" stroke-width="2" vector-effect="non-scaling-stroke" />
-        </svg>
-        <span class="text-xs text-[var(--muted)]">up = bar rising · the flat line is zero · tap the graph to jump there</span>
-      </div>` : ''}
+        <div class="relative">
+          <input id="scrub" type="range" min="0" max="1000" value="1000" class="w-full" />
+          ${cue ? tickHtml(cue.frameT, toneUi.tick) : ''}
+          ${hipCue ? tickHtml(hipCue.frameT, hipUi.tick) : ''}
+        </div>
+      </div>
+
+      ${cue ? cueCardHtml('cue-card', toneUi, cue.confidence === 'low'
+        ? '<span class="text-xs text-[var(--faint)]">Measured against your starting line — film square to the side for a midfoot read.</span>' : '')
+      : (!calibrated ? `
+      <div class="card p-4 text-sm text-[var(--muted)]">Size a plate on the setup screen to check bar drift off midfoot.</div>` : '')}
+
+      ${hipCue ? cueCardHtml('hip-card', hipUi) : ''}
 
       <div class="card p-4 flex flex-col gap-3">
         <div class="flex items-start justify-between">
@@ -164,19 +153,32 @@ export function renderResult(app: App, root: HTMLElement): void {
         </div>
       </div>
 
-      ${cue ? cueCardHtml('cue-card', toneUi, cue.confidence === 'low'
-        ? '<span class="text-xs text-[var(--faint)]">Measured against your starting line — film square to the side for a midfoot read.</span>' : '')
-      : (!calibrated ? `
-      <div class="card p-4 text-sm text-[var(--muted)]">Size a plate on the setup screen to check bar drift off midfoot.</div>` : '')}
-
-      ${hipCue ? cueCardHtml('hip-card', hipUi) : ''}
+      ${vel.length ? `
+      <div class="card p-4 flex flex-col gap-2">
+        <div class="flex items-start justify-between">
+          <div class="flex flex-col gap-1">
+            <span class="eyebrow">Bar speed</span>
+            <div class="flex items-baseline gap-2">
+              <span class="readout text-3xl font-semibold leading-none">${velMax > 0 ? fmtSpeed(velMax) : '—'}<span class="text-base text-[var(--muted)] ml-0.5">${speedUnit}</span></span>
+              <span class="eyebrow text-[var(--faint)]">peak</span>
+            </div>
+          </div>
+          <span id="vel-now" class="readout text-sm text-[var(--muted)]"></span>
+        </div>
+        <svg id="vel-svg" viewBox="0 0 1000 120" preserveAspectRatio="none" class="w-full h-20 touch-none cursor-pointer" aria-label="Bar speed over the rep — tap to jump playback">
+          <line x1="0" x2="1000" y1="${velY(0).toFixed(1)}" y2="${velY(0).toFixed(1)}" stroke="var(--line-bright)" stroke-width="1" vector-effect="non-scaling-stroke" />
+          <polyline points="${velPts}" fill="none" stroke="#22ff55" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke" opacity="0.9" />
+          <line id="vel-cursor" x1="1000" x2="1000" y1="0" y2="120" stroke="var(--amber)" stroke-width="2" vector-effect="non-scaling-stroke" />
+        </svg>
+        <span class="text-xs text-[var(--muted)]">up = bar rising · the flat line is zero · tap the graph to jump there</span>
+      </div>` : ''}
 
       <div id="actions"></div>
       <div id="saved-msg" class="text-center text-sm text-[var(--amber)] h-5"></div>
     </div>`
 
   const stage = root.querySelector<HTMLDivElement>('#stage')!
-  video.className = 'max-h-[54vh] w-auto block'
+  video.className = 'max-h-[42vh] w-auto block'
   stage.appendChild(video)
   const canvas = document.createElement('canvas')
   canvas.className = 'absolute inset-0 w-full h-full pointer-events-none'
