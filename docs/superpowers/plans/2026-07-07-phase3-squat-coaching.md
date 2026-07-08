@@ -23,12 +23,12 @@
 - Modify: `test/coach.test.ts` (failing tests first)
 - Modify: `src/coach.ts`
 
-- [ ] **Step 1:** Failing tests for `detectFacing(poseFrames)`: toes right of heels → `'right'`; left → `'left'`; delta under `FACING_MARGIN` (end-on) → null; too few visible frames → null.
-- [ ] **Step 2:** Failing tests for `analyzeBarDrift` `opts.facing`: pose-midfoot ref + peak drift toward the toes → `direction: 'forward'`; toward the heels → `'backward'`; plate-tap ref or no facing → no direction.
-- [ ] **Step 3:** Failing tests for `analyzeHipRise` `opts.lift: 'squat'`: squat-shaped path (start high → descend → hole → ascend) judged from the hole exit; good rep not fired; good-morning rep fired with `frameT` in window; pause-in-the-hole anchors at the exit; deadlift default behavior untouched (existing tests stay green).
-- [ ] **Step 4:** Failing tests for `analyzeSquatDepth`: hips below knee at the deepest bar point → `where:'below'` + `dropCm` when calibrated; above → `'above'`; inside the level band → `'level'`; null when hip/knee landmarks are missing near the bottom; null on empty path.
-- [ ] **Step 5:** Implement all four in `coach.ts` (consts: `FACING_MARGIN`, `DEPTH_WINDOW_S`, `DEPTH_LEVEL_BAND_FRAC`, with tuning comments). `npm test` green.
-- [ ] **Step 6:** Commit: `feat(coach): facing detection, squat hip-rise anchoring, measurement-only squat depth`.
+- [x] **Step 1:** Failing tests for `detectFacing(poseFrames)`: toes right of heels → `'right'`; left → `'left'`; delta under `FACING_MARGIN` (end-on) → null; too few visible frames → null.
+- [x] **Step 2:** Failing tests for `analyzeBarDrift` `opts.facing`: pose-midfoot ref + peak drift toward the toes → `direction: 'forward'`; toward the heels → `'backward'`; plate-tap ref or no facing → no direction.
+- [x] **Step 3:** Failing tests for `analyzeHipRise` `opts.lift: 'squat'`: squat-shaped path (start high → descend → hole → ascend) judged from the hole exit; good rep not fired; good-morning rep fired with `frameT` in window; pause-in-the-hole anchors at the exit; deadlift default behavior untouched (existing tests stay green).
+- [x] **Step 4:** Failing tests for `analyzeSquatDepth`: hips below knee at the deepest bar point → `where:'below'` + `dropCm` when calibrated; above → `'above'`; inside the level band → `'level'`; null when hip/knee landmarks are missing near the bottom; null on empty path.
+- [x] **Step 5:** Implement all four in `coach.ts` (consts: `FACING_MARGIN`, `DEPTH_WINDOW_S`, `DEPTH_LEVEL_BAND_FRAC`, with tuning comments). `npm test` green.
+- [x] **Step 6:** Commit: `feat(coach): facing detection, squat hip-rise anchoring, measurement-only squat depth`.
 
 ### Task 2: State + persistence threading (TDD)
 
@@ -36,37 +36,37 @@
 - Modify: `test/state.test.ts`, `test/librarySupport.test.ts` (failing first)
 - Modify: `src/state.ts`, `src/librarySupport.ts`, `src/screens/library.ts`
 
-- [ ] **Step 1:** Failing tests: `initialData()` has `liftType:'deadlift'`, `sideOn:null`, `depthCue:null`; `driftSubtitle` prefixes `squat · ` for squat records and stays unchanged for deadlift/legacy.
-- [ ] **Step 2:** Implement: `LiftType` in `coach.ts`; `AppData` + `initialData` fields; `SavedAnalysis` optional `liftType`/`sideOn`/`depthCue`; `library.ts` reopen defaults (`?? 'deadlift'`, `?? null`) and subtitle call.
-- [ ] **Step 3:** `npm test` + `npm run build` green. Commit: `feat(state): lift type + side-on answer + depth cue persisted with saved lifts`.
+- [x] **Step 1:** Failing tests: `initialData()` has `liftType:'deadlift'`, `sideOn:null`, `depthCue:null`; `driftSubtitle` prefixes `squat · ` for squat records and stays unchanged for deadlift/legacy.
+- [x] **Step 2:** Implement: `LiftType` in `coach.ts`; `AppData` + `initialData` fields; `SavedAnalysis` optional `liftType`/`sideOn`/`depthCue`; `library.ts` reopen defaults (`?? 'deadlift'`, `?? null`) and subtitle call.
+- [x] **Step 3:** `npm test` + `npm run build` green. Commit: `feat(state): lift type + side-on answer + depth cue persisted with saved lifts`.
 
 ### Task 3: Setup prompt (screen — no unit tests)
 
 **Files:**
 - Modify: `src/screens/setpoint.ts`
 
-- [ ] **Step 1:** Chip row `Deadlift · Squat` (deadlift active by default, amber border/color when active — same pattern as the skeleton chip). Tapping Squat reveals the inline side-on question chips (`Side-on` / `Not side-on`) in the same row area; answers set `app.data.sideOn`. Switching back to Deadlift clears the question (sideOn → null).
-- [ ] **Step 2:** Build green; commit: `feat(setpoint): unobtrusive lift-type + side-on prompt (deadlift default, zero-tap unchanged)`.
+- [x] **Step 1:** Chip row `Deadlift · Squat` (deadlift active by default, amber border/color when active — same pattern as the skeleton chip). Tapping Squat reveals the inline side-on question chips (`Side-on` / `Not side-on`) in the same row area; answers set `app.data.sideOn`. Switching back to Deadlift clears the question (sideOn → null).
+- [x] **Step 2:** Build green; commit: `feat(setpoint): unobtrusive lift-type + side-on prompt (deadlift default, zero-tap unchanged)`.
 
 ### Task 4: Processing gate + wiring (screen)
 
 **Files:**
 - Modify: `src/screens/processing.ts`
 
-- [ ] **Step 1:** `const gated = liftType==='squat' && sideOn !== true` → skip the entire pose pass and leave `cue`/`hipCue`/`depthCue`/`poseFrames` null when gated. Otherwise: existing pass, then `detectFacing(poseFrames)` → `analyzeBarDrift(..., { facing })`; `analyzeHipRise(..., { lift: liftType })`; `analyzeSquatDepth(...)` for squats only.
-- [ ] **Step 2:** Tests + build green; commit: `feat(processing): side-on gate skips pose for unconfirmed squats; facing + squat cues wired`.
+- [x] **Step 1:** `const gated = liftType==='squat' && sideOn !== true` → skip the entire pose pass and leave `cue`/`hipCue`/`depthCue`/`poseFrames` null when gated. Otherwise: existing pass, then `detectFacing(poseFrames)` → `analyzeBarDrift(..., { facing })`; `analyzeHipRise(..., { lift: liftType })`; `analyzeSquatDepth(...)` for squats only.
+- [x] **Step 2:** Tests + build green; commit: `feat(processing): side-on gate skips pose for unconfirmed squats; facing + squat cues wired`.
 
 ### Task 5: Result cards (screen)
 
 **Files:**
 - Modify: `src/screens/result.ts`
 
-- [ ] **Step 1:** Lift-aware copy: squat drift body ("out of the hole" / balance framing), squat hip card wording; drift headline gains `forward/backward` when `cue.direction` is set.
-- [ ] **Step 2:** Depth card (squat only): neutral eyebrow "Depth", chalk readout (below/level/above knee height, cm when calibrated), tap seeks the deepest bar moment, never amber. Placed after the hip card.
-- [ ] **Step 3:** Gated-squat quiet note card in place of cue cards: "Film from the side to unlock squat coaching…". Persist `liftType`/`sideOn`/`depthCue` in `persist()`.
-- [ ] **Step 4:** Tests + build green; commit: `feat(result): squat cue copy, forward/backward drift wording, neutral depth readout, side-on gate note`.
+- [x] **Step 1:** Lift-aware copy: squat drift body ("out of the hole" / balance framing), squat hip card wording; drift headline gains `forward/backward` when `cue.direction` is set.
+- [x] **Step 2:** Depth card (squat only): neutral eyebrow "Depth", chalk readout (below/level/above knee height, cm when calibrated), tap seeks the deepest bar moment, never amber. Placed after the hip card.
+- [x] **Step 3:** Gated-squat quiet note card in place of cue cards: "Film from the side to unlock squat coaching…". Persist `liftType`/`sideOn`/`depthCue` in `persist()`.
+- [x] **Step 4:** Tests + build green; commit: `feat(result): squat cue copy, forward/backward drift wording, neutral depth readout, side-on gate note`.
 
 ### Task 6: Docs + PR
 
-- [ ] **Step 1:** HANDOFF.md: Phase 3 section, device-test checklist (side-on squat clip: prompt → cues; end-on squat: gate note; deadlift unchanged; save/reopen), move item 3 out of "Next build cycle".
-- [ ] **Step 2:** Push branch; open PR against master titled `feat(coach): Phase 3 — side-on squat coaching behind angle prompt`; body: scope, decisions, cuts, on-device validation list. DO NOT merge.
+- [x] **Step 1:** HANDOFF.md: Phase 3 section, device-test checklist (side-on squat clip: prompt → cues; end-on squat: gate note; deadlift unchanged; save/reopen), move item 3 out of "Next build cycle".
+- [x] **Step 2:** Push branch; open PR against master titled `feat(coach): Phase 3 — side-on squat coaching behind angle prompt`; body: scope, decisions, cuts, on-device validation list. DO NOT merge.
