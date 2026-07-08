@@ -10,4 +10,10 @@ describe('initialData', () => {
     expect(d.startTime).toBe(0)
     expect(d.path).toEqual([])
   })
+  it('defaults to a deadlift with the side-on question unasked (Phase 3)', () => {
+    const d = initialData()
+    expect(d.liftType).toBe('deadlift')
+    expect(d.sideOn).toBeNull()
+    expect(d.depthCue).toBeNull()
+  })
 })

@@ -4,8 +4,8 @@ import { createTracker } from '../tracker'
 import { playAndProcess, playFrames } from '../capture'
 import { loadPose } from '../pose'
 import {
-  midfootXFromFrame, robustMidfoot, analyzeBarDrift, analyzeHipRise, slimFrame,
-  POSE_WARMUP_S, type PoseFrame,
+  midfootXFromFrame, robustMidfoot, analyzeBarDrift, analyzeHipRise, analyzeSquatDepth,
+  detectFacing, slimFrame, POSE_WARMUP_S, type PoseFrame,
 } from '../coach'
 import { smoothPath, type PathPoint } from '../geometry'
 
@@ -92,6 +92,13 @@ export function renderProcessing(app: App, root: HTMLElement): void {
       pass1Over = true
       app.data.path = smoothPath(raw, 5)
 
+      // Phase 3 gate: a squat that is NOT confirmed side-on gets NO pose pass and
+      // NO pose cues — end-on squat faults live on the camera's depth axis, so any
+      // number would be wrong (report §8 risk 2: never pretend to coach an end-on
+      // squat). Bar path / gauge / velocity still render: honest end-on data.
+      const sideOnGated = app.data.liftType === 'squat' && app.data.sideOn !== true
+      if (sideOnGated) { app.go('result'); return }
+
       // Pass 2 (pose): a SECOND decode pass — pose alone (~37 ms/frame on iPhone)
       // won't fit alongside OpenCV in one real-time loop. Strictly additive: any
       // failure falls back to the plate-tap line (seed.x), then to no cue.
@@ -135,10 +142,20 @@ export function renderProcessing(app: App, root: HTMLElement): void {
       // what result.ts displays. If tilt-correction is ever re-enabled, route the
       // cue (path + midfoot reference) through the same rotation, or the cue's
       // number and marker will be wrong in the tilt-corrected frame.
+      // Facing (from heel/toe x-ordering) upgrades drift copy to forward/backward;
+      // null on ambiguous/end-on feet, which simply keeps the generic wording.
+      const facing = detectFacing(app.data.poseFrames)
       app.data.cue = analyzeBarDrift(
         app.data.path, app.data.poseMidfoot, app.data.plateDiameterPx, app.data.seed!.x,
+        { facing },
       )
-      app.data.hipCue = analyzeHipRise(app.data.path, app.data.poseFrames, video.videoHeight)
+      app.data.hipCue = analyzeHipRise(app.data.path, app.data.poseFrames, video.videoHeight,
+        { lift: app.data.liftType })
+      // Depth is squat-only (a deadlift's deepest bar point is the floor) and a
+      // measurement, never a verdict — result.ts renders it in data colors.
+      app.data.depthCue = app.data.liftType === 'squat'
+        ? analyzeSquatDepth(app.data.path, app.data.poseFrames, video.videoHeight, app.data.plateDiameterPx)
+        : null
       app.go('result')
     } finally {
       tracker.delete()

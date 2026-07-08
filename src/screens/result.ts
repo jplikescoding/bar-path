@@ -12,9 +12,16 @@ export function renderResult(app: App, root: HTMLElement): void {
   const refX = seed.x
   const drift = horizontalDrift(path, refX)
   const cue = app.data.cue
+  const squat = app.data.liftType === 'squat'
+  // Squat pose-coaching is gated behind the side-on prompt (report §7 Phase 3):
+  // when not confirmed, processing skipped the pose pass and every cue is null.
+  const sideOnGated = squat && app.data.sideOn !== true
   const cueUnit = cue?.driftCm != null ? 'cm' : 'px'
   const cueVal = cue ? (cue.driftCm != null ? cue.driftCm.toFixed(1) : cue.driftPx.toFixed(0)) : ''
   const cueRef = cue?.refSource === 'pose-midfoot' ? 'midfoot' : 'your starting line'
+  // Facing-aware wording: "6 cm forward off midfoot" when heel/toe geometry told
+  // us which way the lifter points; generic otherwise.
+  const cueDir = cue?.direction ? ` ${cue.direction}` : ''
   // One place for the per-tone styling: a nudge is amber (action); a good rep
   // reads in the data colors (green headline, chalk marker/tick) — never amber.
   const toneUi = cue && cue.tone === 'good'
@@ -26,8 +33,10 @@ export function renderResult(app: App, root: HTMLElement): void {
       }
     : {
         eyebrow: 'Bar drift off midfoot', eyebrowStyle: 'color:var(--amber)',
-        headline: `Bar drifted ${cueVal}${cueUnit} off ${cueRef}`,
-        body: `Keeping it over midfoot will feel stronger off the floor. <span class="text-[var(--amber)]">Tap to see the moment →</span>`,
+        headline: `Bar drifted ${cueVal}${cueUnit}${cueDir} off ${cueRef}`,
+        body: `${squat
+          ? 'Keeping it over midfoot keeps the drive balanced out of the hole.'
+          : 'Keeping it over midfoot will feel stronger off the floor.'} <span class="text-[var(--amber)]">Tap to see the moment →</span>`,
         tick: 'var(--amber)', marker: '#FFB020',
       }
   const startT = app.data.startTime
@@ -39,19 +48,39 @@ export function renderResult(app: App, root: HTMLElement): void {
   // drift nudge already fired, a fired hip cue keeps its data but reads in
   // neutral chalk instead of a second amber alarm.
   const hipAmber = hipCue?.fired === true && cue?.tone !== 'nudge'
+  // Squat and deadlift share the hip-vs-bar rate math; only the moment differs
+  // ("out of the hole" vs "off the floor").
+  const hipMoment = squat ? 'out of the hole' : 'off the floor'
   const hipUi = hipCue && hipCue.fired
     ? {
         eyebrow: 'Hip timing', eyebrowStyle: hipAmber ? 'color:var(--amber)' : 'color:var(--muted)',
-        headline: `Hips rose ~${hipCue.ratio.toFixed(1)}× faster than the bar off the floor`,
-        body: `Chest and hips rising together will feel stronger off the floor. <span class="${hipAmber ? 'text-[var(--amber)]' : 'text-[var(--chalk)]'}">Tap to see the moment →</span>`,
+        headline: `Hips rose ~${hipCue.ratio.toFixed(1)}× faster than the bar ${hipMoment}`,
+        body: `Chest and hips rising together will feel stronger ${hipMoment}. <span class="${hipAmber ? 'text-[var(--amber)]' : 'text-[var(--chalk)]'}">Tap to see the moment →</span>`,
         tick: hipAmber ? 'var(--amber)' : 'rgba(230,235,240,0.6)',
       }
     : {
         eyebrow: 'Hip timing ✓', eyebrowStyle: 'color:rgba(34,255,85,0.75)',
         headline: 'Hips and bar rose together',
-        body: `Off the floor, your hips didn’t outrun the bar. <span class="text-[var(--chalk)]">Tap to review the pull →</span>`,
+        body: `${squat ? 'Out of the hole' : 'Off the floor'}, your hips didn’t outrun the bar. <span class="text-[var(--chalk)]">Tap to review the ${squat ? 'drive' : 'pull'} →</span>`,
         tick: 'rgba(230,235,240,0.6)',
       }
+
+  // Depth (side-on squats only) is a MEASUREMENT card, never a verdict (report
+  // §4.3: sub-parallel depth is normal for many builds — no "hit depth" nudges,
+  // no amber, no prescriptions). Data colors; wording hedged to the landmarks.
+  const depthCue = app.data.depthCue
+  const depthUi = depthCue
+    ? {
+        eyebrow: 'Depth', eyebrowStyle: 'color:var(--muted)',
+        headline: depthCue.where === 'level'
+          ? 'Hips right at knee level at the bottom'
+          : depthCue.dropCm != null
+            ? `Hips ~${Math.abs(depthCue.dropCm).toFixed(1)} cm ${depthCue.where} knee level at the bottom`
+            : `Hips ${depthCue.where} knee level at the bottom`,
+        body: `A pose-landmark reading at the deepest bar moment — context, not a rule. <span class="text-[var(--chalk)]">Tap to see the bottom →</span>`,
+        tick: 'rgba(230,235,240,0.6)',
+      }
+    : null
 
   // If the user sized a plate on setup, show drift in real centimeters; else px.
   const plateDiameterPx = app.data.plateDiameterPx
@@ -110,15 +139,20 @@ export function renderResult(app: App, root: HTMLElement): void {
           <input id="scrub" type="range" min="0" max="1000" value="1000" class="w-full" />
           ${cue ? tickHtml(cue.frameT, toneUi.tick) : ''}
           ${hipCue ? tickHtml(hipCue.frameT, hipUi.tick) : ''}
+          ${depthCue && depthUi ? tickHtml(depthCue.frameT, depthUi.tick) : ''}
         </div>
       </div>
 
-      ${cue ? cueCardHtml('cue-card', toneUi, cue.confidence === 'low'
+      ${sideOnGated ? `
+      <div class="card p-4 text-sm text-[var(--muted)]"><span class="eyebrow block mb-1.5">Squat coaching</span>Film from the side to unlock squat cues — bar-over-midfoot, hip timing and depth all read from a side-on view. Your bar path and speed are still measured.</div>`
+      : cue ? cueCardHtml('cue-card', toneUi, cue.confidence === 'low'
         ? '<span class="text-xs text-[var(--faint)]">Measured against your starting line — film square to the side for a midfoot read.</span>' : '')
       : (!calibrated ? `
       <div class="card p-4 text-sm text-[var(--muted)]">Size a plate on the setup screen to check bar drift off midfoot.</div>` : '')}
 
       ${hipCue ? cueCardHtml('hip-card', hipUi) : ''}
+
+      ${depthUi ? cueCardHtml('depth-card', depthUi) : ''}
 
       <div class="card p-4 flex flex-col gap-3">
         <div class="flex items-start justify-between">
@@ -306,6 +340,14 @@ export function renderResult(app: App, root: HTMLElement): void {
       setScrubFromTime(hipCue.frameT)
     })
   }
+  const depthCard = root.querySelector<HTMLButtonElement>('#depth-card')
+  if (depthCard && depthCue) {
+    depthCard.addEventListener('click', () => {
+      pause()
+      video.currentTime = depthCue.frameT
+      setScrubFromTime(depthCue.frameT)
+    })
+  }
   video.addEventListener('seeked', () => {
     if (video.paused && !exporting) { render(video.currentTime); updateVel(video.currentTime) }
   }, { signal: ac.signal })
@@ -390,6 +432,9 @@ export function renderResult(app: App, root: HTMLElement): void {
       poseMidfoot: app.data.poseMidfoot,
       poseFrames: app.data.poseFrames,
       hipCue: app.data.hipCue,
+      liftType: app.data.liftType,
+      sideOn: app.data.sideOn,
+      depthCue: app.data.depthCue,
     }
     await saveAnalysis(record)
     app.data.savedId = record.id

@@ -1,5 +1,5 @@
 import { pxToCm, type PathPoint } from './geometry'
-import type { BarDriftCue, HipRiseCue, MidfootEstimate, PoseFrame } from './coach'
+import type { BarDriftCue, HipRiseCue, LiftType, MidfootEstimate, PoseFrame, SquatDepthCue } from './coach'
 
 // A persisted, completed bar-path analysis. Mirrors AppData plus the bits we need
 // to render a library list (name/date/thumbnail/drift) and to reopen later.
@@ -20,6 +20,9 @@ export interface SavedAnalysis {
   poseMidfoot?: MidfootEstimate | null
   poseFrames?: PoseFrame[] | null     // slim per-frame pose (skeleton overlay); optional — older records lack it
   hipCue?: HipRiseCue | null          // early-hip-rise timing cue; optional — older records lack it
+  liftType?: LiftType                 // Phase 3; optional — older records are deadlifts
+  sideOn?: boolean | null             // squat angle answer; optional — older records lack it
+  depthCue?: SquatDepthCue | null     // squat depth readout; optional — older records lack it
 }
 
 const MONTHS = [
@@ -46,10 +49,13 @@ export function sortByNewest(list: SavedAnalysis[]): SavedAnalysis[] {
   return list.slice().sort((a, b) => b.createdAt - a.createdAt)
 }
 
-// e.g. "drift 95px", or "drift 8.4cm" when the lift was plate-calibrated.
-export function driftSubtitle(range: number, plateDiameterPx?: number | null): string {
+// e.g. "drift 95px", or "drift 8.4cm" when the lift was plate-calibrated. Squat
+// records are prefixed ("squat · drift 8.4cm") so lifts are tellable apart in the
+// list; deadlift/legacy rows read exactly as before.
+export function driftSubtitle(range: number, plateDiameterPx?: number | null, liftType?: LiftType): string {
+  const prefix = liftType === 'squat' ? 'squat · ' : ''
   if (plateDiameterPx) {
-    return `drift ${pxToCm(range, plateDiameterPx).toFixed(1)}cm`
+    return `${prefix}drift ${pxToCm(range, plateDiameterPx).toFixed(1)}cm`
   }
-  return `drift ${Math.round(range)}px`
+  return `${prefix}drift ${Math.round(range)}px`
 }

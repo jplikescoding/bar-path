@@ -10,6 +10,17 @@ export function renderSetPoint(app: App, root: HTMLElement): void {
       <p id="hint" class="text-sm text-center text-[var(--muted)] min-h-[2.5rem] flex items-center justify-center leading-relaxed">
         Scrub to the start, then tap the bar plate to track it. <span class="text-[var(--faint)]">(Drag to its rim to measure drift in cm.)</span>
       </p>
+      <div class="flex flex-col items-center gap-2">
+        <div class="flex items-center justify-center gap-2">
+          <button id="lift-dl" class="chip text-sm" aria-pressed="true">Deadlift</button>
+          <button id="lift-sq" class="chip text-sm" aria-pressed="false">Squat</button>
+        </div>
+        <div id="sideon-row" class="hidden items-center justify-center gap-2">
+          <span class="text-xs text-[var(--muted)]">Filmed from the side?</span>
+          <button id="so-yes" class="chip text-sm" aria-pressed="false">Side-on</button>
+          <button id="so-no" class="chip text-sm" aria-pressed="false">Not side-on</button>
+        </div>
+      </div>
       <div id="stage" class="frame"></div>
       <input id="scrub" type="range" min="0" max="1000" value="0" />
       <div class="flex gap-2">
@@ -35,6 +46,39 @@ export function renderSetPoint(app: App, root: HTMLElement): void {
   const trackBtn = root.querySelector<HTMLButtonElement>('#track')!
   const setEndBtn = root.querySelector<HTMLButtonElement>('#setend')!
   const resetBtn = root.querySelector<HTMLButtonElement>('#reset')!
+
+  // Lift-type + squat side-on prompt (Phase 3). Deadlift is the default — a
+  // deadlift user never touches this. Picking Squat asks the angle question
+  // inline; squat coaching only runs when the answer is "Side-on" (the report
+  // gates squat cues behind a side-on angle — end-on squat faults are invisible).
+  const liftDl = root.querySelector<HTMLButtonElement>('#lift-dl')!
+  const liftSq = root.querySelector<HTMLButtonElement>('#lift-sq')!
+  const sideOnRow = root.querySelector<HTMLDivElement>('#sideon-row')!
+  const soYes = root.querySelector<HTMLButtonElement>('#so-yes')!
+  const soNo = root.querySelector<HTMLButtonElement>('#so-no')!
+  const setChip = (chip: HTMLButtonElement, on: boolean) => {
+    chip.setAttribute('aria-pressed', String(on))
+    chip.style.borderColor = on ? 'var(--amber)' : ''
+    chip.style.color = on ? 'var(--amber)' : ''
+  }
+  const renderLiftChips = () => {
+    const squat = app.data.liftType === 'squat'
+    setChip(liftDl, !squat)
+    setChip(liftSq, squat)
+    sideOnRow.classList.toggle('hidden', !squat)
+    sideOnRow.classList.toggle('flex', squat)
+    setChip(soYes, squat && app.data.sideOn === true)
+    setChip(soNo, squat && app.data.sideOn === false)
+  }
+  liftDl.addEventListener('click', () => {
+    app.data.liftType = 'deadlift'; app.data.sideOn = null; renderLiftChips()
+  })
+  liftSq.addEventListener('click', () => {
+    app.data.liftType = 'squat'; renderLiftChips()
+  })
+  soYes.addEventListener('click', () => { app.data.sideOn = true; renderLiftChips() })
+  soNo.addEventListener('click', () => { app.data.sideOn = false; renderLiftChips() })
+  renderLiftChips()
 
   // Draw the tracking seed (red dot) plus, when sizing or already sized, the
   // amber plate circle. `liveRadius` is the in-progress drag radius (video px).

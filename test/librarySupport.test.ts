@@ -46,4 +46,10 @@ describe('driftSubtitle', () => {
     expect(driftSubtitle(95)).toBe('drift 95px')
     expect(driftSubtitle(94.6)).toBe('drift 95px')
   })
+  it('prefixes squat records; deadlift and legacy records stay unchanged', () => {
+    expect(driftSubtitle(95, null, 'squat')).toBe('squat · drift 95px')
+    expect(driftSubtitle(90, 90, 'squat')).toBe('squat · drift 45.0cm')
+    expect(driftSubtitle(95, null, 'deadlift')).toBe('drift 95px')
+    expect(driftSubtitle(95)).toBe('drift 95px')
+  })
 })

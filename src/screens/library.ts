@@ -37,6 +37,9 @@ async function reopen(app: App, saved: SavedAnalysis): Promise<void> {
     cue: saved.cue ? { ...saved.cue, tone: saved.cue.tone ?? 'nudge' } : null,
     poseFrames: saved.poseFrames ?? null,
     hipCue: saved.hipCue ?? null,
+    liftType: saved.liftType ?? 'deadlift',
+    sideOn: saved.sideOn ?? null,
+    depthCue: saved.depthCue ?? null,
   }
   app.go('result')
 }
@@ -81,7 +84,7 @@ export function renderLibrary(app: App, root: HTMLElement): void {
         <img src="${item.thumbnail}" alt="" class="w-16 h-16 object-cover rounded-lg bg-black shrink-0 border border-[var(--line)]" />
         <button class="open flex-1 text-left min-w-0">
           <div class="truncate font-medium" style="font-family:var(--font-display)">${item.name || defaultName(item.createdAt)}</div>
-          <div class="readout text-xs text-[var(--muted)] mt-1">${driftSubtitle(item.driftRange, item.plateDiameterPx)}</div>
+          <div class="readout text-xs text-[var(--muted)] mt-1">${driftSubtitle(item.driftRange, item.plateDiameterPx, item.liftType)}</div>
         </button>
         <button class="rename w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--surface)] shrink-0" aria-label="Rename">✎</button>
         <button class="del w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--mark)] active:text-white shrink-0" aria-label="Delete">✕</button>`

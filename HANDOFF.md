@@ -1,7 +1,54 @@
 # Bar Path Tracker — Handoff / Status
 
-Last updated: 2026-07-02 (overnight build: Phase 1 MERGED + Phase 1.5 polish + Phase 2 pose cues +
-velocity graph ALL SHIPPED to production; next = JP device-test → Phase 2 validation on clip library).
+Last updated: 2026-07-07 (Phase 3 side-on squat coaching BUILT on `feat/phase3-squat-coaching`,
+PR open awaiting JP review + device test; sticky review stage PR #8 merged 2026-07-07).
+
+## ►► Phase 3 — side-on squat coaching (PR open, NOT merged, untested on device)
+
+Built per report §7 Phase 3 (spec `docs/superpowers/specs/2026-07-07-phase3-squat-coaching-design.md`,
+plan `docs/superpowers/plans/2026-07-07-phase3-squat-coaching.md`):
+
+- **Lift prompt (setup screen):** chips `Deadlift · Squat` under the hint; Deadlift is the
+  default and that flow is completely unchanged (zero new taps). Picking Squat asks inline:
+  *"Filmed from the side?"* → `Side-on` / `Not side-on`.
+- **The gate:** a squat NOT confirmed side-on gets **no pose pass and no pose cues** — end-on
+  squat faults live on the depth axis (report risk #2), so the result screen shows one quiet
+  "Film from the side to unlock squat cues" card instead. Bar path / gauge / velocity still
+  render (honest end-on data). Unanswered = gated.
+- **Side-on squat cues:** bar-over-midfoot (same `analyzeBarDrift`, squat wording "out of the
+  hole"), hip timing (`analyzeHipRise` `opts.lift:'squat'` — the judged ascent anchors at the
+  bar's DEEPEST point / hole exit, not the deadlift floor anchoring), and **Depth** — a
+  measurement-only chalk card (`analyzeSquatDepth`: hips below/level/above knee height at the
+  deepest bar moment, cm when calibrated, median over `DEPTH_WINDOW_S`). Depth is NEVER amber
+  and never prescriptive — "hit depth" nudges are the report's false-positive trap (§4.3).
+- **Facing detection (`detectFacing`):** heel/toe x-ordering (median over frames, needs
+  `FACING_MARGIN`) upgrades drift copy to *"drifted 6 cm **forward** off midfoot"* — deadlifts
+  too. Self-gates: end-on feet point at the camera → null → generic wording. 2D x-order only, no
+  depth/3D claims.
+- **Persistence:** `liftType` / `sideOn` / `depthCue` thread `state.ts` → save → `librarySupport.ts`
+  → library reopen (older records default to deadlift). Library subtitle prefixes squat rows.
+- Guardrails held: at most ONE amber per review (hip still demotes when drift nudged; depth never
+  amber); no spine/safety claims; silence whenever pose is weak. All new math is pure in
+  `coach.ts`, unit-tested (65 tests green).
+
+### ►► JP device-test checklist — Phase 3 (iPhone Safari, Private tab, after merge)
+- [ ] **Deadlift regression:** run a deadlift clip WITHOUT touching the new chips — identical
+      flow and cards to before (midfoot cue, hip timing, skeleton, speed).
+- [ ] **Prompt:** tap Squat on setup → "Filmed from the side?" appears; answers toggle amber;
+      switching back to Deadlift hides it.
+- [ ] **End-on squat (your existing clips), Squat + "Not side-on":** processing skips the body
+      pass (faster), result shows the quiet "Film from the side" card, NO midfoot/hip/depth
+      cards, but gauge + velocity still there.
+- [ ] **Side-on squat (film one), Squat + "Side-on", plate sized:** midfoot card reads "out of
+      the hole" wording; hip timing judges the ascent from the hole (tap seeks there); **Depth**
+      card in chalk (never amber) says hips below/at/above knee level with a sane cm number —
+      tap seeks the bottom.
+- [ ] **Facing copy:** on a clean side-on clip the drift card should read "forward"/"backward"
+      off midfoot (falls back to generic wording if feet aren't clearly seen).
+- [ ] **One amber max:** if the drift nudge fires, the hip card must read chalk, not amber;
+      depth card is never amber.
+- [ ] **Save → reopen from library:** squat rows show "squat · drift …"; reopened lift keeps
+      squat wording + depth card; old saved lifts still open as deadlifts.
 
 ## ►► START HERE next session
 **Everything through Phase 2 is MERGED and LIVE** (PRs #4–#7, deploys green). Shipped overnight
@@ -57,9 +104,13 @@ velocity graph ALL SHIPPED to production; next = JP device-test → Phase 2 vali
 1. **Phase 2 validation/tuning on JP's clip library** — heel↔toe weighting, the 5 cm drift flag,
    hip-rise `fireRatio`/`windowFrac`/`POSE_WARMUP_S` (all in `coach.ts` opts/consts). Pipeline
    validation works on roughly-side clips; absolute-cm needs square side-on (tripod pending).
+   Phase 3 added more knobs to the same sweep: `FACING_MARGIN`, `DEPTH_WINDOW_S`,
+   `DEPTH_LEVEL_BAND_FRAC`, and the squat hip-rise `fireRatio` (currently shared 1.5×).
 2. **Build slider** (one-time, skippable, widens tolerances only — report §5.1) once JP wants it.
-3. **Phase 3 (report §7):** side-on squat coaching behind an angle prompt; facing-detection from
-   heel/toe could upgrade cue copy to "forward off midfoot".
+3. ~~Phase 3 (report §7): side-on squat coaching behind an angle prompt~~ — **BUILT** (PR open,
+   see the Phase 3 section at the top; awaiting JP review + device test on a real side-on squat).
+   Explicitly cut from the slice: knee valgus (separate front-on capture per the report) and
+   auto side-on detection from plate circularity (manual prompt is the Phase 3 mechanism).
 
 Design report (source of truth): `docs/body-analysis-exploration.md` (PR #3).
 

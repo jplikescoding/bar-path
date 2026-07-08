@@ -1,5 +1,5 @@
 import type { PathPoint } from './geometry'
-import type { BarDriftCue, HipRiseCue, MidfootEstimate, PoseFrame } from './coach'
+import type { BarDriftCue, HipRiseCue, LiftType, MidfootEstimate, PoseFrame, SquatDepthCue } from './coach'
 
 export type Screen = 'upload' | 'setpoint' | 'processing' | 'result' | 'library' | 'posetest'
 
@@ -28,6 +28,15 @@ export interface AppData {
   poseFrames: PoseFrame[] | null
   // Early-hip-rise timing cue (fired or positive); null when unjudgeable.
   hipCue: HipRiseCue | null
+  // Which lift the user said this clip is (setup prompt). Deadlift = default,
+  // keeps every pre-Phase-3 behavior.
+  liftType: LiftType
+  // Squat angle prompt answer: true = confirmed side-on (squat coaching runs),
+  // false = not side-on (pose coaching gated off), null = never asked (deadlift).
+  sideOn: boolean | null
+  // Squat depth readout (measurement, never a verdict); null when unjudgeable
+  // or not a side-on squat.
+  depthCue: SquatDepthCue | null
 }
 
 export function initialData(): AppData {
@@ -45,5 +54,8 @@ export function initialData(): AppData {
     cue: null,
     poseFrames: null,
     hipCue: null,
+    liftType: 'deadlift',
+    sideOn: null,
+    depthCue: null,
   }
 }
