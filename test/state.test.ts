@@ -16,4 +16,10 @@ describe('initialData', () => {
     expect(d.sideOn).toBeNull()
     expect(d.depthCue).toBeNull()
   })
+  it('starts with no recorded date, weight, or note (lift library)', () => {
+    const d = initialData()
+    expect(d.recordedAt).toBeNull()
+    expect(d.weightLb).toBeNull()
+    expect(d.note).toBe('')
+  })
 })

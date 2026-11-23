@@ -435,6 +435,9 @@ export function renderResult(app: App, root: HTMLElement): void {
       liftType: app.data.liftType,
       sideOn: app.data.sideOn,
       depthCue: app.data.depthCue,
+      recordedAt: app.data.recordedAt,
+      weightLb: app.data.weightLb,
+      note: app.data.note,
     }
     await saveAnalysis(record)
     app.data.savedId = record.id

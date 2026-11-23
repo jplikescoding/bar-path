@@ -40,6 +40,9 @@ async function reopen(app: App, saved: SavedAnalysis): Promise<void> {
     liftType: saved.liftType ?? 'deadlift',
     sideOn: saved.sideOn ?? null,
     depthCue: saved.depthCue ?? null,
+    recordedAt: saved.recordedAt ?? null,
+    weightLb: saved.weightLb ?? null,
+    note: saved.note ?? '',
   }
   app.go('result')
 }
