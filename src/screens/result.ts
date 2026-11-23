@@ -506,6 +506,7 @@ export function renderResult(app: App, root: HTMLElement): void {
       actions.querySelector('#export')!.addEventListener('click', doExport)
       actions.querySelector('#new')!.addEventListener('click', () => { app.reset(); leave('upload') })
       actions.querySelector('#delete')!.addEventListener('click', async () => {
+        if (!confirm('Delete this lift? This can’t be undone.')) return
         const btn = actions.querySelector<HTMLButtonElement>('#delete')!
         btn.disabled = true; btn.textContent = 'Deleting…'
         try { await deleteAnalysis(app.data.savedId!); leave('library') }

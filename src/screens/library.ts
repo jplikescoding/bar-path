@@ -166,11 +166,13 @@ export function renderLibrary(app: App, root: HTMLElement): void {
     const customName = item.name && item.name !== defaultName(item.createdAt)
       ? `<div class="lift-name truncate text-xs text-[var(--faint)] mt-0.5">${escapeHtml(item.name)}</div>` : ''
     row.innerHTML = `
-      <img src="${item.thumbnail}" alt="" class="w-16 h-16 object-cover rounded-lg bg-black shrink-0 border border-[var(--line)]" />
-      <button class="open flex-1 text-left min-w-0">
-        <div class="truncate font-medium" style="font-family:var(--font-display)">${escapeHtml(liftTitle(item))}</div>
-        <div class="truncate readout text-xs text-[var(--muted)] mt-1">${escapeHtml(liftSummary(item))}${note}</div>
-        ${customName}
+      <button class="open flex-1 flex items-center gap-3 text-left min-w-0">
+        <img src="${item.thumbnail}" alt="" class="w-16 h-16 object-cover rounded-lg bg-black shrink-0 border border-[var(--line)]" />
+        <div class="min-w-0">
+          <div class="truncate font-medium" style="font-family:var(--font-display)">${escapeHtml(liftTitle(item))}</div>
+          <div class="truncate readout text-xs text-[var(--muted)] mt-1">${escapeHtml(liftSummary(item))}${note}</div>
+          ${customName}
+        </div>
       </button>
       <button class="rename w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--surface)] shrink-0" aria-label="Edit">✎</button>
       <button class="del w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--mark)] active:text-white shrink-0" aria-label="Delete">✕</button>`
@@ -186,6 +188,7 @@ export function renderLibrary(app: App, root: HTMLElement): void {
     })
     row.querySelector('.del')!.addEventListener('click', async (e) => {
       e.stopPropagation()
+      if (!confirm('Delete this lift? This can’t be undone.')) return
       await deleteAnalysis(item.id)
       await renderList()
     })
