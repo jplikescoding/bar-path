@@ -3,6 +3,7 @@ import { drawReview, drawDriftMarker, drawSkeleton } from '../overlay'
 import { rotatePath, horizontalDrift, pxToCm, verticalVelocity, type PathPoint } from '../geometry'
 import { saveAnalysis, deleteAnalysis } from '../library'
 import { defaultName, type SavedAnalysis } from '../librarySupport'
+import { liftFieldsHtml, readLiftFields } from './liftFields'
 
 export function renderResult(app: App, root: HTMLElement): void {
   const video = app.data.videoEl!
@@ -445,22 +446,26 @@ export function renderResult(app: App, root: HTMLElement): void {
 
   // Tapping Save opens an inline, prefilled name field before persisting.
   const showNameEditor = () => {
+    const baseDate = app.data.recordedAt ?? Date.now()
     actions.innerHTML = `
       <div class="flex flex-col gap-2">
-        <input id="name-input" class="w-full bg-[var(--surface-2)] border border-[var(--line-bright)] rounded-xl px-3 py-3 text-[var(--chalk)]" style="font-family:var(--font-display)" placeholder="Name this lift" />
+        ${liftFieldsHtml({ name: defaultName(Date.now()), date: baseDate, weightLb: null, note: '' })}
         <div class="flex gap-2">
           <button id="confirm-save" class="btn btn-amber flex-1">Save to library</button>
           <button id="cancel-save" class="btn btn-quiet">Cancel</button>
         </div>
       </div>`
-    const input = actions.querySelector<HTMLInputElement>('#name-input')!
-    input.value = defaultName(Date.now())
+    const input = actions.querySelector<HTMLInputElement>('#lf-name')!
     input.focus(); input.select()
     const confirmBtn = actions.querySelector<HTMLButtonElement>('#confirm-save')!
     const commit = async () => {
       confirmBtn.disabled = true; confirmBtn.textContent = 'Saving…'
       try {
-        await persist(input.value.trim())
+        const f = readLiftFields(actions, baseDate)
+        app.data.recordedAt = f.date
+        app.data.weightLb = f.weightLb
+        app.data.note = f.note
+        await persist(f.name)
         savedMsg.textContent = 'Saved ✓'
         renderActions()
       } catch (err) {

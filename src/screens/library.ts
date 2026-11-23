@@ -1,6 +1,7 @@
 import type { App } from '../app'
 import { listAnalyses, getAnalysis, deleteAnalysis, saveAnalysis } from '../library'
-import { defaultName, driftSubtitle, type SavedAnalysis } from '../librarySupport'
+import { defaultName, driftSubtitle, liftDate, type SavedAnalysis } from '../librarySupport'
+import { liftFieldsHtml, readLiftFields } from './liftFields'
 
 // Recreate a live <video> element from a saved Blob so the result screen — which
 // renders from a live videoEl — can replay a persisted analysis.
@@ -89,7 +90,7 @@ export function renderLibrary(app: App, root: HTMLElement): void {
           <div class="truncate font-medium" style="font-family:var(--font-display)">${item.name || defaultName(item.createdAt)}</div>
           <div class="readout text-xs text-[var(--muted)] mt-1">${driftSubtitle(item.driftRange, item.plateDiameterPx, item.liftType)}</div>
         </button>
-        <button class="rename w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--surface)] shrink-0" aria-label="Rename">✎</button>
+        <button class="rename w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--surface)] shrink-0" aria-label="Edit">✎</button>
         <button class="del w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--mark)] active:text-white shrink-0" aria-label="Delete">✕</button>`
 
       row.querySelector('.open')!.addEventListener('click', async () => {
@@ -98,7 +99,7 @@ export function renderLibrary(app: App, root: HTMLElement): void {
       })
       row.querySelector('.rename')!.addEventListener('click', (e) => {
         e.stopPropagation()
-        startRename(item, row)
+        startEdit(item, row)
       })
       row.querySelector('.del')!.addEventListener('click', async (e) => {
         e.stopPropagation()
@@ -109,29 +110,29 @@ export function renderLibrary(app: App, root: HTMLElement): void {
     }
   }
 
-  // Swap a row into an inline rename editor. listAnalyses() returns full records
-  // (incl. the video Blob), so we can mutate name and persist the same object.
-  const startRename = (item: SavedAnalysis, row: HTMLDivElement) => {
+  // Swap a row into an inline editor for name / weight / date / note.
+  // listAnalyses() returns full records (incl. the video Blob), so we can mutate
+  // and persist the same object.
+  const startEdit = (item: SavedAnalysis, row: HTMLDivElement) => {
+    const baseDate = liftDate(item)
+    row.className = 'card flex flex-col gap-2 p-2.5'
     row.innerHTML = `
-      <img src="${item.thumbnail}" alt="" class="w-16 h-16 object-cover rounded-lg bg-black shrink-0 border border-[var(--line)]" />
-      <input class="rename-input flex-1 min-w-0 bg-[var(--surface-2)] border border-[var(--line-bright)] rounded-lg px-3 py-2 text-[var(--chalk)]" style="font-family:var(--font-display)" />
-      <button class="rename-ok w-10 h-10 rounded-lg bg-[var(--amber)] text-[var(--amber-ink)] shrink-0" aria-label="Confirm">✓</button>
-      <button class="rename-cancel w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] shrink-0" aria-label="Cancel">✕</button>`
-    const input = row.querySelector<HTMLInputElement>('.rename-input')!
-    input.value = item.name || defaultName(item.createdAt)
-    input.focus(); input.select()
-
+      ${liftFieldsHtml({ name: item.name || defaultName(item.createdAt), date: baseDate, weightLb: item.weightLb ?? null, note: item.note ?? '' })}
+      <div class="flex gap-2">
+        <button class="edit-ok btn btn-amber flex-1">Save</button>
+        <button class="edit-cancel btn btn-quiet">Cancel</button>
+      </div>`
     const commit = async () => {
-      const name = input.value.trim()
-      if (name) { item.name = name; await saveAnalysis(item) }
+      const f = readLiftFields(row, baseDate)
+      if (f.name) item.name = f.name
+      item.weightLb = f.weightLb
+      item.note = f.note
+      item.recordedAt = f.date
+      await saveAnalysis(item)
       await renderList()
     }
-    row.querySelector('.rename-ok')!.addEventListener('click', commit)
-    row.querySelector('.rename-cancel')!.addEventListener('click', () => { renderList() })
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') commit()
-      else if (e.key === 'Escape') renderList()
-    })
+    row.querySelector('.edit-ok')!.addEventListener('click', commit)
+    row.querySelector('.edit-cancel')!.addEventListener('click', () => { renderList() })
   }
 
   renderList()
