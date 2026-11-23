@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  defaultName, sortByNewest, driftSubtitle, liftDate, monthKey, monthOptions, filterLifts, groupByDay,
+  defaultName, sortByNewest, liftDate, monthKey, monthOptions, filterLifts, groupByDay,
   liftSummary, liftTitle, parseWeightLb, toDateInput, withDate, escapeHtml, type SavedAnalysis,
 } from '../src/librarySupport'
 import { pxToCm } from '../src/geometry'
@@ -43,19 +43,6 @@ describe('sortByNewest', () => {
     const out = sortByNewest(input)
     expect(out.map((x) => x.id)).toEqual(['b', 'c', 'a'])
     expect(input.map((x) => x.id)).toEqual(['a', 'b', 'c']) // unchanged
-  })
-})
-
-describe('driftSubtitle', () => {
-  it('rounds and labels in pixels', () => {
-    expect(driftSubtitle(95)).toBe('drift 95px')
-    expect(driftSubtitle(94.6)).toBe('drift 95px')
-  })
-  it('prefixes squat records; deadlift and legacy records stay unchanged', () => {
-    expect(driftSubtitle(95, null, 'squat')).toBe('squat · drift 95px')
-    expect(driftSubtitle(90, 90, 'squat')).toBe('squat · drift 45.0cm')
-    expect(driftSubtitle(95, null, 'deadlift')).toBe('drift 95px')
-    expect(driftSubtitle(95)).toBe('drift 95px')
   })
 })
 

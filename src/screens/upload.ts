@@ -27,7 +27,7 @@ export function renderUpload(app: App, root: HTMLElement): void {
           Choose a lift video
           <input id="file" type="file" accept="video/*" class="hidden" />
         </label>
-        <button id="library" class="btn btn-ghost">Saved lifts</button>
+        <button id="back" class="btn btn-quiet">← Lifts</button>
       </div>
 
       <div class="card max-w-sm w-full text-left p-4 mt-1">
@@ -41,7 +41,7 @@ export function renderUpload(app: App, root: HTMLElement): void {
       </div>
     </div>`
 
-  root.querySelector('#library')!.addEventListener('click', () => app.go('library'))
+  root.querySelector('#back')!.addEventListener('click', () => app.go('library'))
 
   const input = root.querySelector<HTMLInputElement>('#file')!
   input.addEventListener('change', () => {

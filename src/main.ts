@@ -20,7 +20,7 @@ app.register('library', renderLibrary)
 app.register('posetest', renderPoseTest) // THROWAWAY SPIKE: hidden, reached via #pose only
 
 // Hidden entry point for the pose feasibility spike (branch spike/pose).
-app.go(location.hash === '#pose' ? 'posetest' : 'upload')
+app.go(location.hash === '#pose' ? 'posetest' : 'library')
 
 // Register the service worker (PWA: offline app-shell + cached OpenCV engine).
 // Guarded + relative path so it works under the GitHub Pages subpath.

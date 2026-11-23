@@ -494,12 +494,12 @@ export function renderResult(app: App, root: HTMLElement): void {
     } else {
       actions.innerHTML = `
         <div class="grid grid-cols-2 gap-2">
-          <button id="library" class="btn btn-amber">Library</button>
+          <button id="back-lifts" class="btn btn-amber">← Lifts</button>
           <button id="export" class="btn btn-ghost">Export</button>
           <button id="new" class="btn btn-quiet">New</button>
           <button id="delete" class="btn btn-quiet">Delete</button>
         </div>`
-      actions.querySelector('#library')!.addEventListener('click', () => leave('library'))
+      actions.querySelector('#back-lifts')!.addEventListener('click', () => leave('library'))
       actions.querySelector('#export')!.addEventListener('click', doExport)
       actions.querySelector('#new')!.addEventListener('click', () => { app.reset(); leave('upload') })
       actions.querySelector('#delete')!.addEventListener('click', async () => {

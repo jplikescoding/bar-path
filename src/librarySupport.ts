@@ -141,14 +141,3 @@ export function withDate(ts: number, ymd: string): number {
 export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 }
-
-// e.g. "drift 95px", or "drift 8.4cm" when the lift was plate-calibrated. Squat
-// records are prefixed ("squat · drift 8.4cm") so lifts are tellable apart in the
-// list; deadlift/legacy rows read exactly as before.
-export function driftSubtitle(range: number, plateDiameterPx?: number | null, liftType?: LiftType): string {
-  const prefix = liftType === 'squat' ? 'squat · ' : ''
-  if (plateDiameterPx) {
-    return `${prefix}drift ${pxToCm(range, plateDiameterPx).toFixed(1)}cm`
-  }
-  return `${prefix}drift ${Math.round(range)}px`
-}

@@ -1,6 +1,9 @@
 import type { App } from '../app'
 import { listAnalyses, getAnalysis, deleteAnalysis, saveAnalysis } from '../library'
-import { defaultName, driftSubtitle, liftDate, type SavedAnalysis } from '../librarySupport'
+import {
+  defaultName, escapeHtml, filterLifts, groupByDay, liftDate, liftSummary, liftTitle, monthOptions,
+  type LiftFilter, type SavedAnalysis,
+} from '../librarySupport'
 import { liftFieldsHtml, readLiftFields } from './liftFields'
 
 // Recreate a live <video> element from a saved Blob so the result screen — which
@@ -48,25 +51,54 @@ async function reopen(app: App, saved: SavedAnalysis): Promise<void> {
   app.go('result')
 }
 
+const LIFT_CHIPS: { id: LiftFilter; label: string }[] = [
+  { id: 'all', label: 'All' }, { id: 'deadlift', label: 'Deadlift' }, { id: 'squat', label: 'Squat' },
+]
+
+// The app's home: every saved lift, filterable by lift type and month, grouped
+// by the day it was recorded (Strava-style feed, no stats).
 export function renderLibrary(app: App, root: HTMLElement): void {
+  const view = app.libraryView
   root.innerHTML = `
     <div class="min-h-screen flex flex-col gap-4 p-4 max-w-md mx-auto w-full rise">
       <div class="flex items-end justify-between">
-        <div class="flex flex-col gap-1">
-          <span class="eyebrow">Library</span>
-          <h1 class="text-2xl font-bold leading-none">Saved lifts</h1>
-        </div>
-        <button id="new" class="btn btn-amber text-sm">New video</button>
+        <h1 class="text-2xl font-bold leading-none">Lifts</h1>
+        <button id="new" class="btn btn-amber text-sm">+ New</button>
+      </div>
+      <div id="banner"></div>
+      <div class="flex items-center gap-2 flex-wrap">
+        ${LIFT_CHIPS.map((c) => `<button id="f-${c.id}" class="chip text-sm" aria-pressed="${view.lift === c.id}">${c.label}</button>`).join('')}
+        <select id="f-month" class="chip text-sm ml-auto" aria-label="Month"></select>
       </div>
       <div id="list" class="flex flex-col gap-2"></div>
     </div>`
 
   root.querySelector('#new')!.addEventListener('click', () => app.go('upload'))
   const list = root.querySelector<HTMLDivElement>('#list')!
+  const monthSel = root.querySelector<HTMLSelectElement>('#f-month')!
+  let all: SavedAnalysis[] = []
 
-  const renderList = async () => {
-    const items = await listAnalyses()
-    if (items.length === 0) {
+  const setLift = (lift: LiftFilter) => {
+    view.lift = lift
+    for (const c of LIFT_CHIPS) root.querySelector(`#f-${c.id}`)!.setAttribute('aria-pressed', String(c.id === lift))
+  }
+  for (const c of LIFT_CHIPS) {
+    root.querySelector(`#f-${c.id}`)!.addEventListener('click', () => { setLift(c.id); renderRows() })
+  }
+  monthSel.addEventListener('change', () => { view.month = monthSel.value; renderRows() })
+
+  // Month options come from all lifts; a month that no longer has lifts (after a
+  // delete or date edit) falls back to All time.
+  const renderMonths = () => {
+    const opts = monthOptions(all)
+    if (view.month !== 'all' && !opts.some((o) => o.key === view.month)) view.month = 'all'
+    monthSel.innerHTML = `<option value="all">All time</option>` +
+      opts.map((o) => `<option value="${o.key}">${o.label}</option>`).join('')
+    monthSel.value = view.month
+  }
+
+  const renderRows = () => {
+    if (all.length === 0) {
       list.innerHTML = `
         <div class="card text-center text-[var(--muted)] py-16 px-6 flex flex-col items-center gap-4 mt-2">
           <svg width="40" height="52" viewBox="0 0 86 116" fill="none" aria-hidden="true">
@@ -79,35 +111,69 @@ export function renderLibrary(app: App, root: HTMLElement): void {
       list.querySelector('#upload')!.addEventListener('click', () => app.go('upload'))
       return
     }
-
-    list.innerHTML = ''
-    for (const item of items) {
-      const row = document.createElement('div')
-      row.className = 'card flex items-center gap-3 p-2.5 active:bg-[var(--surface-2)] transition-colors'
-      row.innerHTML = `
-        <img src="${item.thumbnail}" alt="" class="w-16 h-16 object-cover rounded-lg bg-black shrink-0 border border-[var(--line)]" />
-        <button class="open flex-1 text-left min-w-0">
-          <div class="truncate font-medium" style="font-family:var(--font-display)">${item.name || defaultName(item.createdAt)}</div>
-          <div class="readout text-xs text-[var(--muted)] mt-1">${driftSubtitle(item.driftRange, item.plateDiameterPx, item.liftType)}</div>
-        </button>
-        <button class="rename w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--surface)] shrink-0" aria-label="Edit">✎</button>
-        <button class="del w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--mark)] active:text-white shrink-0" aria-label="Delete">✕</button>`
-
-      row.querySelector('.open')!.addEventListener('click', async () => {
-        const saved = await getAnalysis(item.id)
-        if (saved) await reopen(app, saved)
+    const groups = groupByDay(filterLifts(all, view.lift, view.month), Date.now())
+    if (groups.length === 0) {
+      list.innerHTML = `
+        <div class="card text-center text-[var(--muted)] py-10 px-6 flex flex-col items-center gap-3">
+          <p class="text-sm">No lifts match</p>
+          <button id="clear-filters" class="btn btn-quiet text-sm">Clear filters</button>
+        </div>`
+      list.querySelector('#clear-filters')!.addEventListener('click', () => {
+        setLift('all')
+        view.month = 'all'
+        monthSel.value = 'all'
+        renderRows()
       })
-      row.querySelector('.rename')!.addEventListener('click', (e) => {
-        e.stopPropagation()
-        startEdit(item, row)
-      })
-      row.querySelector('.del')!.addEventListener('click', async (e) => {
-        e.stopPropagation()
-        await deleteAnalysis(item.id)
-        await renderList()
-      })
-      list.appendChild(row)
+      return
     }
+    list.innerHTML = ''
+    for (const g of groups) {
+      const header = document.createElement('div')
+      header.className = 'day-label eyebrow text-[var(--muted)] pt-2 pb-1 border-b border-[var(--line)]'
+      header.textContent = g.label
+      list.appendChild(header)
+      for (const item of g.items) list.appendChild(makeRow(item))
+    }
+  }
+
+  const makeRow = (item: SavedAnalysis): HTMLDivElement => {
+    const row = document.createElement('div')
+    row.className = 'lift-row card flex items-center gap-3 p-2.5 active:bg-[var(--surface-2)] transition-colors'
+    const note = item.note ? ` · “${escapeHtml(item.note)}”` : ''
+    // Lift type + date carry identity; a custom name shows only when JP gave one.
+    const customName = item.name && item.name !== defaultName(item.createdAt)
+      ? `<div class="truncate text-xs text-[var(--faint)] mt-0.5">${escapeHtml(item.name)}</div>` : ''
+    row.innerHTML = `
+      <img src="${item.thumbnail}" alt="" class="w-16 h-16 object-cover rounded-lg bg-black shrink-0 border border-[var(--line)]" />
+      <button class="open flex-1 text-left min-w-0">
+        <div class="truncate font-medium" style="font-family:var(--font-display)">${escapeHtml(liftTitle(item))}</div>
+        <div class="truncate readout text-xs text-[var(--muted)] mt-1">${escapeHtml(liftSummary(item))}${note}</div>
+        ${customName}
+      </button>
+      <button class="rename w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--surface)] shrink-0" aria-label="Edit">✎</button>
+      <button class="del w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--mark)] active:text-white shrink-0" aria-label="Delete">✕</button>`
+
+    row.querySelector('.open')!.addEventListener('click', async () => {
+      view.scrollY = window.scrollY
+      const saved = await getAnalysis(item.id)
+      if (saved) await reopen(app, saved)
+    })
+    row.querySelector('.rename')!.addEventListener('click', (e) => {
+      e.stopPropagation()
+      startEdit(item, row)
+    })
+    row.querySelector('.del')!.addEventListener('click', async (e) => {
+      e.stopPropagation()
+      await deleteAnalysis(item.id)
+      await renderList()
+    })
+    return row
+  }
+
+  const renderList = async () => {
+    all = await listAnalyses()
+    renderMonths()
+    renderRows()
   }
 
   // Swap a row into an inline editor for name / weight / date / note.
@@ -135,5 +201,5 @@ export function renderLibrary(app: App, root: HTMLElement): void {
     row.querySelector('.edit-cancel')!.addEventListener('click', () => { renderList() })
   }
 
-  renderList()
+  renderList().then(() => window.scrollTo(0, view.scrollY))
 }
