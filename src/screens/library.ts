@@ -69,7 +69,8 @@ export function renderLibrary(app: App, root: HTMLElement): void {
       <div id="banner"></div>
       <div class="flex items-center gap-1.5">
         ${LIFT_CHIPS.map((c) => `<button id="f-${c.id}" class="chip text-sm px-3" aria-pressed="false">${c.label}</button>`).join('')}
-        <select id="f-month" class="chip text-sm px-3 ml-auto min-w-0" aria-label="Month"></select>
+        <!-- text-base: iOS zooms on focus below 16px -->
+        <select id="f-month" class="chip text-base px-3 ml-auto min-w-0" aria-label="Month"></select>
       </div>
       <div id="list" class="flex flex-col gap-2"></div>
     </div>`
@@ -163,7 +164,7 @@ export function renderLibrary(app: App, root: HTMLElement): void {
     const note = item.note ? ` · “${escapeHtml(item.note)}”` : ''
     // Lift type + date carry identity; a custom name shows only when JP gave one.
     const customName = item.name && item.name !== defaultName(item.createdAt)
-      ? `<div class="truncate text-xs text-[var(--faint)] mt-0.5">${escapeHtml(item.name)}</div>` : ''
+      ? `<div class="lift-name truncate text-xs text-[var(--faint)] mt-0.5">${escapeHtml(item.name)}</div>` : ''
     row.innerHTML = `
       <img src="${item.thumbnail}" alt="" class="w-16 h-16 object-cover rounded-lg bg-black shrink-0 border border-[var(--line)]" />
       <button class="open flex-1 text-left min-w-0">
@@ -222,5 +223,9 @@ export function renderLibrary(app: App, root: HTMLElement): void {
     row.querySelector('.edit-cancel')!.addEventListener('click', () => { renderList() })
   }
 
-  renderList().then(() => window.scrollTo(0, view.scrollY))
+  // Restore the scroll only once, when coming back from a lift opened here; every
+  // other way into the feed starts at the top.
+  const restoreY = view.scrollY
+  view.scrollY = 0
+  renderList().then(() => window.scrollTo(0, restoreY))
 }

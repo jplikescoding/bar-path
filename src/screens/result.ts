@@ -447,9 +447,12 @@ export function renderResult(app: App, root: HTMLElement): void {
   // Tapping Save opens an inline, prefilled name field before persisting.
   const showNameEditor = () => {
     const baseDate = app.data.recordedAt ?? Date.now()
+    // Remember the prefill: if it's left as-is, persist() names the lift from its
+    // own createdAt so the library doesn't mistake it for a custom name.
+    const prefilled = defaultName(Date.now())
     actions.innerHTML = `
       <div class="flex flex-col gap-2">
-        ${liftFieldsHtml({ name: defaultName(Date.now()), date: baseDate, weightLb: null, note: '' })}
+        ${liftFieldsHtml({ name: prefilled, date: baseDate, weightLb: null, note: '' })}
         <div class="flex gap-2">
           <button id="confirm-save" class="btn btn-amber flex-1">Save to library</button>
           <button id="cancel-save" class="btn btn-quiet">Cancel</button>
@@ -465,7 +468,7 @@ export function renderResult(app: App, root: HTMLElement): void {
         app.data.recordedAt = f.date
         app.data.weightLb = f.weightLb
         app.data.note = f.note
-        await persist(f.name)
+        await persist(f.name === prefilled ? '' : f.name)
         savedMsg.textContent = 'Saved ✓'
         renderActions()
       } catch (err) {
