@@ -67,9 +67,9 @@ export function renderLibrary(app: App, root: HTMLElement): void {
         <button id="new" class="btn btn-amber text-sm">+ New</button>
       </div>
       <div id="banner"></div>
-      <div class="flex items-center gap-2 flex-wrap">
-        ${LIFT_CHIPS.map((c) => `<button id="f-${c.id}" class="chip text-sm" aria-pressed="${view.lift === c.id}">${c.label}</button>`).join('')}
-        <select id="f-month" class="chip text-sm ml-auto" aria-label="Month"></select>
+      <div class="flex items-center gap-1.5">
+        ${LIFT_CHIPS.map((c) => `<button id="f-${c.id}" class="chip text-sm px-3" aria-pressed="false">${c.label}</button>`).join('')}
+        <select id="f-month" class="chip text-sm px-3 ml-auto min-w-0" aria-label="Month"></select>
       </div>
       <div id="list" class="flex flex-col gap-2"></div>
     </div>`
@@ -91,10 +91,18 @@ export function renderLibrary(app: App, root: HTMLElement): void {
     banner.querySelector('#banner-close')!.addEventListener('click', () => { app.bannerDismissed = true; banner.innerHTML = '' })
   }
 
+  // Selected chip = amber outline + text, same as the setup screen's lift chips.
   const setLift = (lift: LiftFilter) => {
     view.lift = lift
-    for (const c of LIFT_CHIPS) root.querySelector(`#f-${c.id}`)!.setAttribute('aria-pressed', String(c.id === lift))
+    for (const c of LIFT_CHIPS) {
+      const chip = root.querySelector<HTMLButtonElement>(`#f-${c.id}`)!
+      const on = c.id === lift
+      chip.setAttribute('aria-pressed', String(on))
+      chip.style.borderColor = on ? 'var(--amber)' : ''
+      chip.style.color = on ? 'var(--amber)' : ''
+    }
   }
+  setLift(view.lift)
   for (const c of LIFT_CHIPS) {
     root.querySelector(`#f-${c.id}`)!.addEventListener('click', () => { setLift(c.id); renderRows() })
   }
