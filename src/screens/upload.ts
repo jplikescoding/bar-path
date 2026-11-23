@@ -55,6 +55,10 @@ export function renderUpload(app: App, root: HTMLElement): void {
     video.setAttribute('webkit-playsinline', '') // older iOS Safari
     video.preload = 'auto'
     video.addEventListener('loadedmetadata', () => {
+      // A new clip is always a fresh analysis: drop anything left from a lift
+      // opened earlier (savedId, plate size, cues…) — Library's "New video"
+      // reaches this screen without resetting.
+      app.reset()
       app.data.videoUrl = url
       app.data.videoEl = video
       app.go('setpoint')
