@@ -5,6 +5,7 @@ import {
   type LiftFilter, type SavedAnalysis,
 } from '../librarySupport'
 import { liftFieldsHtml, readLiftFields } from './liftFields'
+import { isStandalone } from '../storage'
 
 // Recreate a live <video> element from a saved Blob so the result screen — which
 // renders from a live videoEl — can replay a persisted analysis.
@@ -77,6 +78,18 @@ export function renderLibrary(app: App, root: HTMLElement): void {
   const list = root.querySelector<HTMLDivElement>('#list')!
   const monthSel = root.querySelector<HTMLSelectElement>('#f-month')!
   let all: SavedAnalysis[] = []
+
+  // Safari tab (not the Home Screen app): warn that saved lifts can be evicted.
+  // Info styling, not amber — it's not the screen's action.
+  if (!app.bannerDismissed && !isStandalone(navigator as { standalone?: boolean }, (q) => window.matchMedia(q))) {
+    const banner = root.querySelector<HTMLDivElement>('#banner')!
+    banner.innerHTML = `
+      <div class="card flex items-start gap-3 p-3 text-sm text-[var(--muted)]">
+        <p class="flex-1 leading-relaxed">Lifts saved in Safari can be erased after 7 days. Add Bar Path to your Home Screen to keep them: <span class="text-[var(--chalk)]">Share → Add to Home Screen</span>.</p>
+        <button id="banner-close" class="w-8 h-8 shrink-0 rounded-lg text-[var(--faint)] active:text-[var(--chalk)]" aria-label="Dismiss">✕</button>
+      </div>`
+    banner.querySelector('#banner-close')!.addEventListener('click', () => { app.bannerDismissed = true; banner.innerHTML = '' })
+  }
 
   const setLift = (lift: LiftFilter) => {
     view.lift = lift

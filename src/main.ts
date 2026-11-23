@@ -6,6 +6,7 @@ import { renderProcessing } from './screens/processing'
 import { renderResult } from './screens/result'
 import { renderLibrary } from './screens/library'
 import { renderPoseTest } from './screens/posetest'
+import { requestPersist } from './storage'
 
 const root = document.querySelector<HTMLDivElement>('#app')!
 const app = new App(root)
@@ -21,6 +22,9 @@ app.register('posetest', renderPoseTest) // THROWAWAY SPIKE: hidden, reached via
 
 // Hidden entry point for the pose feasibility spike (branch spike/pose).
 app.go(location.hash === '#pose' ? 'posetest' : 'library')
+
+// Ask iOS to protect saved lifts from storage eviction (no-op if unsupported).
+requestPersist(navigator.storage)
 
 // Register the service worker (PWA: offline app-shell + cached OpenCV engine).
 // Guarded + relative path so it works under the GitHub Pages subpath.
