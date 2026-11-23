@@ -1,7 +1,36 @@
 # Bar Path Tracker — Handoff / Status
 
-Last updated: 2026-07-07 (Phase 3 side-on squat coaching BUILT on `feat/phase3-squat-coaching`,
-PR open awaiting JP review + device test; sticky review stage PR #8 merged 2026-07-07).
+Last updated: 2026-11-23 (Lift library as home BUILT on `feat/lift-library-home`; PR #10
+new-video stale-state fix merged + live).
+
+## ►► Lift library as home (2026-11-23)
+
+Spec `docs/superpowers/specs/2026-11-23-lift-library-home-design.md`, plan
+`docs/superpowers/plans/2026-11-23-lift-library-home.md`.
+
+- **App opens on Lifts** (Strava-like feed): All/Deadlift/Squat chips + month select,
+  grouped by day of `liftDate = recordedAt ?? createdAt`. **+ New** → upload (← Lifts back);
+  saved review → **← Lifts** restores filters + scroll (session-only, `App.libraryView`).
+- **Recorded date** parsed from the clip (`src/videoDate.ts`: Apple
+  `com.apple.quicktime.creationdate` → `mvhd` creation_time → `lastModified` if > 1 min old).
+  JP's local test clips are re-encoded (creation_time 0) → null, correct. **Unverified on an
+  iPhone original.**
+- **Optional weight (lb, as entered) / date / note** on save and via ✎ (`src/screens/liftFields.ts`).
+- **Storage safety** (`src/storage.ts`): `navigator.storage.persist()` at startup; Safari-tab
+  banner (not in the Home Screen app), dismissible per session. No backup file yet (JP chose
+  to defer; originals stay in Photos). Safari-tab lifts do NOT carry into the Home Screen app.
+- Local checks: `npm test`; `node scripts/e2e-library.mjs` (gitignored; headless Edge, 25 checks).
+- Known pre-existing gap: reopening a lift whose video can't load hangs silently.
+
+### ►► JP device-test checklist — lift library (Home Screen app)
+- [ ] Update: swipe the app away in the app switcher, reopen → opens on **Lifts**, no Safari banner.
+- [ ] In a Safari tab the banner shows; ✕ hides it.
+- [ ] Pick a clip filmed on an earlier day → after saving it files under **that** day
+      (if it files under today, metadata didn't survive the picker — fix the date in the form).
+- [ ] Save with weight + note → row reads "Deadlift · 315 lb" with the note; ✎ edits all four fields.
+- [ ] Filters: Squat chip, a month, both together; "No lifts match" → Clear filters.
+- [ ] Open a lift → **← Lifts** → same filters.
+- [ ] New video after opening an old lift → Review shows **Save** (PR #10 regression).
 
 ## ►► Phase 3 — side-on squat coaching (PR open, NOT merged, untested on device)
 

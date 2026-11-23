@@ -1,4 +1,5 @@
 import type { App } from '../app'
+import { readRecordedAt, pickRecordedAt } from '../videoDate'
 
 export function renderUpload(app: App, root: HTMLElement): void {
   root.innerHTML = `
@@ -26,7 +27,7 @@ export function renderUpload(app: App, root: HTMLElement): void {
           Choose a lift video
           <input id="file" type="file" accept="video/*" class="hidden" />
         </label>
-        <button id="library" class="btn btn-ghost">Saved lifts</button>
+        <button id="back" class="btn btn-quiet">← Lifts</button>
       </div>
 
       <div class="card max-w-sm w-full text-left p-4 mt-1">
@@ -40,12 +41,13 @@ export function renderUpload(app: App, root: HTMLElement): void {
       </div>
     </div>`
 
-  root.querySelector('#library')!.addEventListener('click', () => app.go('library'))
+  root.querySelector('#back')!.addEventListener('click', () => app.go('library'))
 
   const input = root.querySelector<HTMLInputElement>('#file')!
   input.addEventListener('change', () => {
     const file = input.files?.[0]
     if (!file) return
+    const recorded = readRecordedAt(file) // never rejects; null when unknown
     const url = URL.createObjectURL(file)
     const video = document.createElement('video')
     video.src = url
@@ -54,11 +56,12 @@ export function renderUpload(app: App, root: HTMLElement): void {
     video.setAttribute('playsinline', '')        // iOS: render inline, don't fullscreen
     video.setAttribute('webkit-playsinline', '') // older iOS Safari
     video.preload = 'auto'
-    video.addEventListener('loadedmetadata', () => {
+    video.addEventListener('loadedmetadata', async () => {
       // A new clip is always a fresh analysis: drop anything left from a lift
       // opened earlier (savedId, plate size, cues…) — Library's "New video"
       // reaches this screen without resetting.
       app.reset()
+      app.data.recordedAt = pickRecordedAt(await recorded, file.lastModified, Date.now())
       app.data.videoUrl = url
       app.data.videoEl = video
       app.go('setpoint')

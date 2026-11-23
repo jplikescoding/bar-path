@@ -37,6 +37,11 @@ export interface AppData {
   // Squat depth readout (measurement, never a verdict); null when unjudgeable
   // or not a side-on squat.
   depthCue: SquatDepthCue | null
+  // When the video was recorded (from its metadata), null = unknown → save time.
+  recordedAt: number | null
+  // Optional lift details entered at save (pounds, as entered) and a free note.
+  weightLb: number | null
+  note: string
 }
 
 export function initialData(): AppData {
@@ -57,5 +62,8 @@ export function initialData(): AppData {
     liftType: 'deadlift',
     sideOn: null,
     depthCue: null,
+    recordedAt: null,
+    weightLb: null,
+    note: '',
   }
 }

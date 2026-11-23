@@ -1,6 +1,11 @@
 import type { App } from '../app'
 import { listAnalyses, getAnalysis, deleteAnalysis, saveAnalysis } from '../library'
-import { defaultName, driftSubtitle, type SavedAnalysis } from '../librarySupport'
+import {
+  defaultName, escapeHtml, filterLifts, groupByDay, liftDate, liftSummary, liftTitle, monthOptions,
+  type LiftFilter, type SavedAnalysis,
+} from '../librarySupport'
+import { liftFieldsHtml, readLiftFields } from './liftFields'
+import { isStandalone } from '../storage'
 
 // Recreate a live <video> element from a saved Blob so the result screen — which
 // renders from a live videoEl — can replay a persisted analysis.
@@ -40,29 +45,82 @@ async function reopen(app: App, saved: SavedAnalysis): Promise<void> {
     liftType: saved.liftType ?? 'deadlift',
     sideOn: saved.sideOn ?? null,
     depthCue: saved.depthCue ?? null,
+    recordedAt: saved.recordedAt ?? null,
+    weightLb: saved.weightLb ?? null,
+    note: saved.note ?? '',
   }
   app.go('result')
 }
 
+const LIFT_CHIPS: { id: LiftFilter; label: string }[] = [
+  { id: 'all', label: 'All' }, { id: 'deadlift', label: 'Deadlift' }, { id: 'squat', label: 'Squat' },
+]
+
+// The app's home: every saved lift, filterable by lift type and month, grouped
+// by the day it was recorded (Strava-style feed, no stats).
 export function renderLibrary(app: App, root: HTMLElement): void {
+  const view = app.libraryView
   root.innerHTML = `
     <div class="min-h-screen flex flex-col gap-4 p-4 max-w-md mx-auto w-full rise">
       <div class="flex items-end justify-between">
-        <div class="flex flex-col gap-1">
-          <span class="eyebrow">Library</span>
-          <h1 class="text-2xl font-bold leading-none">Saved lifts</h1>
-        </div>
-        <button id="new" class="btn btn-amber text-sm">New video</button>
+        <h1 class="text-2xl font-bold leading-none">Lifts</h1>
+        <button id="new" class="btn btn-amber text-sm">+ New</button>
+      </div>
+      <div id="banner"></div>
+      <div class="flex items-center gap-1.5">
+        ${LIFT_CHIPS.map((c) => `<button id="f-${c.id}" class="chip text-sm px-3" aria-pressed="false">${c.label}</button>`).join('')}
+        <!-- text-base: iOS zooms on focus below 16px -->
+        <select id="f-month" class="chip text-base px-3 ml-auto min-w-0" aria-label="Month"></select>
       </div>
       <div id="list" class="flex flex-col gap-2"></div>
     </div>`
 
   root.querySelector('#new')!.addEventListener('click', () => app.go('upload'))
   const list = root.querySelector<HTMLDivElement>('#list')!
+  const monthSel = root.querySelector<HTMLSelectElement>('#f-month')!
+  let all: SavedAnalysis[] = []
 
-  const renderList = async () => {
-    const items = await listAnalyses()
-    if (items.length === 0) {
+  // Safari tab (not the Home Screen app): warn that saved lifts can be evicted.
+  // Info styling, not amber — it's not the screen's action.
+  if (!app.bannerDismissed && !isStandalone(navigator as { standalone?: boolean }, (q) => window.matchMedia(q))) {
+    const banner = root.querySelector<HTMLDivElement>('#banner')!
+    banner.innerHTML = `
+      <div class="card flex items-start gap-3 p-3 text-sm text-[var(--muted)]">
+        <p class="flex-1 leading-relaxed">Lifts saved in Safari can be erased after 7 days. Add Bar Path to your Home Screen to keep them: <span class="text-[var(--chalk)]">Share → Add to Home Screen</span>.</p>
+        <button id="banner-close" class="w-8 h-8 shrink-0 rounded-lg text-[var(--faint)] active:text-[var(--chalk)]" aria-label="Dismiss">✕</button>
+      </div>`
+    banner.querySelector('#banner-close')!.addEventListener('click', () => { app.bannerDismissed = true; banner.innerHTML = '' })
+  }
+
+  // Selected chip = amber outline + text, same as the setup screen's lift chips.
+  const setLift = (lift: LiftFilter) => {
+    view.lift = lift
+    for (const c of LIFT_CHIPS) {
+      const chip = root.querySelector<HTMLButtonElement>(`#f-${c.id}`)!
+      const on = c.id === lift
+      chip.setAttribute('aria-pressed', String(on))
+      chip.style.borderColor = on ? 'var(--amber)' : ''
+      chip.style.color = on ? 'var(--amber)' : ''
+    }
+  }
+  setLift(view.lift)
+  for (const c of LIFT_CHIPS) {
+    root.querySelector(`#f-${c.id}`)!.addEventListener('click', () => { setLift(c.id); renderRows() })
+  }
+  monthSel.addEventListener('change', () => { view.month = monthSel.value; renderRows() })
+
+  // Month options come from all lifts; a month that no longer has lifts (after a
+  // delete or date edit) falls back to All time.
+  const renderMonths = () => {
+    const opts = monthOptions(all)
+    if (view.month !== 'all' && !opts.some((o) => o.key === view.month)) view.month = 'all'
+    monthSel.innerHTML = `<option value="all">All time</option>` +
+      opts.map((o) => `<option value="${o.key}">${o.label}</option>`).join('')
+    monthSel.value = view.month
+  }
+
+  const renderRows = () => {
+    if (all.length === 0) {
       list.innerHTML = `
         <div class="card text-center text-[var(--muted)] py-16 px-6 flex flex-col items-center gap-4 mt-2">
           <svg width="40" height="52" viewBox="0 0 86 116" fill="none" aria-hidden="true">
@@ -75,61 +133,99 @@ export function renderLibrary(app: App, root: HTMLElement): void {
       list.querySelector('#upload')!.addEventListener('click', () => app.go('upload'))
       return
     }
-
+    const groups = groupByDay(filterLifts(all, view.lift, view.month), Date.now())
+    if (groups.length === 0) {
+      list.innerHTML = `
+        <div class="card text-center text-[var(--muted)] py-10 px-6 flex flex-col items-center gap-3">
+          <p class="text-sm">No lifts match</p>
+          <button id="clear-filters" class="btn btn-quiet text-sm">Clear filters</button>
+        </div>`
+      list.querySelector('#clear-filters')!.addEventListener('click', () => {
+        setLift('all')
+        view.month = 'all'
+        monthSel.value = 'all'
+        renderRows()
+      })
+      return
+    }
     list.innerHTML = ''
-    for (const item of items) {
-      const row = document.createElement('div')
-      row.className = 'card flex items-center gap-3 p-2.5 active:bg-[var(--surface-2)] transition-colors'
-      row.innerHTML = `
-        <img src="${item.thumbnail}" alt="" class="w-16 h-16 object-cover rounded-lg bg-black shrink-0 border border-[var(--line)]" />
-        <button class="open flex-1 text-left min-w-0">
-          <div class="truncate font-medium" style="font-family:var(--font-display)">${item.name || defaultName(item.createdAt)}</div>
-          <div class="readout text-xs text-[var(--muted)] mt-1">${driftSubtitle(item.driftRange, item.plateDiameterPx, item.liftType)}</div>
-        </button>
-        <button class="rename w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--surface)] shrink-0" aria-label="Rename">✎</button>
-        <button class="del w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--mark)] active:text-white shrink-0" aria-label="Delete">✕</button>`
-
-      row.querySelector('.open')!.addEventListener('click', async () => {
-        const saved = await getAnalysis(item.id)
-        if (saved) await reopen(app, saved)
-      })
-      row.querySelector('.rename')!.addEventListener('click', (e) => {
-        e.stopPropagation()
-        startRename(item, row)
-      })
-      row.querySelector('.del')!.addEventListener('click', async (e) => {
-        e.stopPropagation()
-        await deleteAnalysis(item.id)
-        await renderList()
-      })
-      list.appendChild(row)
+    for (const g of groups) {
+      const header = document.createElement('div')
+      header.className = 'day-label eyebrow text-[var(--muted)] pt-2 pb-1 border-b border-[var(--line)]'
+      header.textContent = g.label
+      list.appendChild(header)
+      for (const item of g.items) list.appendChild(makeRow(item))
     }
   }
 
-  // Swap a row into an inline rename editor. listAnalyses() returns full records
-  // (incl. the video Blob), so we can mutate name and persist the same object.
-  const startRename = (item: SavedAnalysis, row: HTMLDivElement) => {
+  const makeRow = (item: SavedAnalysis): HTMLDivElement => {
+    const row = document.createElement('div')
+    row.className = 'lift-row card flex items-center gap-3 p-2.5 active:bg-[var(--surface-2)] transition-colors'
+    const note = item.note ? ` · “${escapeHtml(item.note)}”` : ''
+    // Lift type + date carry identity; a custom name shows only when JP gave one.
+    const customName = item.name && item.name !== defaultName(item.createdAt)
+      ? `<div class="lift-name truncate text-xs text-[var(--faint)] mt-0.5">${escapeHtml(item.name)}</div>` : ''
     row.innerHTML = `
       <img src="${item.thumbnail}" alt="" class="w-16 h-16 object-cover rounded-lg bg-black shrink-0 border border-[var(--line)]" />
-      <input class="rename-input flex-1 min-w-0 bg-[var(--surface-2)] border border-[var(--line-bright)] rounded-lg px-3 py-2 text-[var(--chalk)]" style="font-family:var(--font-display)" />
-      <button class="rename-ok w-10 h-10 rounded-lg bg-[var(--amber)] text-[var(--amber-ink)] shrink-0" aria-label="Confirm">✓</button>
-      <button class="rename-cancel w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] shrink-0" aria-label="Cancel">✕</button>`
-    const input = row.querySelector<HTMLInputElement>('.rename-input')!
-    input.value = item.name || defaultName(item.createdAt)
-    input.focus(); input.select()
+      <button class="open flex-1 text-left min-w-0">
+        <div class="truncate font-medium" style="font-family:var(--font-display)">${escapeHtml(liftTitle(item))}</div>
+        <div class="truncate readout text-xs text-[var(--muted)] mt-1">${escapeHtml(liftSummary(item))}${note}</div>
+        ${customName}
+      </button>
+      <button class="rename w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--surface)] shrink-0" aria-label="Edit">✎</button>
+      <button class="del w-10 h-10 rounded-lg bg-[var(--surface-2)] border border-[var(--line)] text-[var(--muted)] active:bg-[var(--mark)] active:text-white shrink-0" aria-label="Delete">✕</button>`
 
-    const commit = async () => {
-      const name = input.value.trim()
-      if (name) { item.name = name; await saveAnalysis(item) }
-      await renderList()
-    }
-    row.querySelector('.rename-ok')!.addEventListener('click', commit)
-    row.querySelector('.rename-cancel')!.addEventListener('click', () => { renderList() })
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') commit()
-      else if (e.key === 'Escape') renderList()
+    row.querySelector('.open')!.addEventListener('click', async () => {
+      view.scrollY = window.scrollY
+      const saved = await getAnalysis(item.id)
+      if (saved) await reopen(app, saved)
     })
+    row.querySelector('.rename')!.addEventListener('click', (e) => {
+      e.stopPropagation()
+      startEdit(item, row)
+    })
+    row.querySelector('.del')!.addEventListener('click', async (e) => {
+      e.stopPropagation()
+      await deleteAnalysis(item.id)
+      await renderList()
+    })
+    return row
   }
 
-  renderList()
+  const renderList = async () => {
+    all = await listAnalyses()
+    renderMonths()
+    renderRows()
+  }
+
+  // Swap a row into an inline editor for name / weight / date / note.
+  // listAnalyses() returns full records (incl. the video Blob), so we can mutate
+  // and persist the same object.
+  const startEdit = (item: SavedAnalysis, row: HTMLDivElement) => {
+    const baseDate = liftDate(item)
+    row.className = 'card flex flex-col gap-2 p-2.5'
+    row.innerHTML = `
+      ${liftFieldsHtml({ name: item.name || defaultName(item.createdAt), date: baseDate, weightLb: item.weightLb ?? null, note: item.note ?? '' })}
+      <div class="flex gap-2">
+        <button class="edit-ok btn btn-amber flex-1">Save</button>
+        <button class="edit-cancel btn btn-quiet">Cancel</button>
+      </div>`
+    const commit = async () => {
+      const f = readLiftFields(row, baseDate)
+      if (f.name) item.name = f.name
+      item.weightLb = f.weightLb
+      item.note = f.note
+      item.recordedAt = f.date
+      await saveAnalysis(item)
+      await renderList()
+    }
+    row.querySelector('.edit-ok')!.addEventListener('click', commit)
+    row.querySelector('.edit-cancel')!.addEventListener('click', () => { renderList() })
+  }
+
+  // Restore the scroll only once, when coming back from a lift opened here; every
+  // other way into the feed starts at the top.
+  const restoreY = view.scrollY
+  view.scrollY = 0
+  renderList().then(() => window.scrollTo(0, restoreY))
 }

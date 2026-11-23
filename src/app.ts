@@ -1,10 +1,15 @@
 import type { Screen } from './state'
 import { initialData, type AppData } from './state'
+import type { LiftFilter } from './librarySupport'
 
 export type RenderFn = (app: App, root: HTMLElement) => void
 
 export class App {
   data: AppData = initialData()
+  // Library filters + scroll, kept for the session so <- Lifts returns to the same view.
+  libraryView: { lift: LiftFilter; month: 'all' | string; scrollY: number } = { lift: 'all', month: 'all', scrollY: 0 }
+  // Safari-tab storage banner dismissed (session only).
+  bannerDismissed = false
   private screens = new Map<Screen, RenderFn>()
   constructor(private root: HTMLElement) {}
 

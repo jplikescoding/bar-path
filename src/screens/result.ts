@@ -3,6 +3,7 @@ import { drawReview, drawDriftMarker, drawSkeleton } from '../overlay'
 import { rotatePath, horizontalDrift, pxToCm, verticalVelocity, type PathPoint } from '../geometry'
 import { saveAnalysis, deleteAnalysis } from '../library'
 import { defaultName, type SavedAnalysis } from '../librarySupport'
+import { liftFieldsHtml, readLiftFields } from './liftFields'
 
 export function renderResult(app: App, root: HTMLElement): void {
   const video = app.data.videoEl!
@@ -435,6 +436,9 @@ export function renderResult(app: App, root: HTMLElement): void {
       liftType: app.data.liftType,
       sideOn: app.data.sideOn,
       depthCue: app.data.depthCue,
+      recordedAt: app.data.recordedAt,
+      weightLb: app.data.weightLb,
+      note: app.data.note,
     }
     await saveAnalysis(record)
     app.data.savedId = record.id
@@ -442,22 +446,29 @@ export function renderResult(app: App, root: HTMLElement): void {
 
   // Tapping Save opens an inline, prefilled name field before persisting.
   const showNameEditor = () => {
+    const baseDate = app.data.recordedAt ?? Date.now()
+    // Remember the prefill: if it's left as-is, persist() names the lift from its
+    // own createdAt so the library doesn't mistake it for a custom name.
+    const prefilled = defaultName(Date.now())
     actions.innerHTML = `
       <div class="flex flex-col gap-2">
-        <input id="name-input" class="w-full bg-[var(--surface-2)] border border-[var(--line-bright)] rounded-xl px-3 py-3 text-[var(--chalk)]" style="font-family:var(--font-display)" placeholder="Name this lift" />
+        ${liftFieldsHtml({ name: prefilled, date: baseDate, weightLb: null, note: '' })}
         <div class="flex gap-2">
           <button id="confirm-save" class="btn btn-amber flex-1">Save to library</button>
           <button id="cancel-save" class="btn btn-quiet">Cancel</button>
         </div>
       </div>`
-    const input = actions.querySelector<HTMLInputElement>('#name-input')!
-    input.value = defaultName(Date.now())
+    const input = actions.querySelector<HTMLInputElement>('#lf-name')!
     input.focus(); input.select()
     const confirmBtn = actions.querySelector<HTMLButtonElement>('#confirm-save')!
     const commit = async () => {
       confirmBtn.disabled = true; confirmBtn.textContent = 'Saving…'
       try {
-        await persist(input.value.trim())
+        const f = readLiftFields(actions, baseDate)
+        app.data.recordedAt = f.date
+        app.data.weightLb = f.weightLb
+        app.data.note = f.note
+        await persist(f.name === prefilled ? '' : f.name)
         savedMsg.textContent = 'Saved ✓'
         renderActions()
       } catch (err) {
@@ -486,12 +497,12 @@ export function renderResult(app: App, root: HTMLElement): void {
     } else {
       actions.innerHTML = `
         <div class="grid grid-cols-2 gap-2">
-          <button id="library" class="btn btn-amber">Library</button>
+          <button id="back-lifts" class="btn btn-amber">← Lifts</button>
           <button id="export" class="btn btn-ghost">Export</button>
           <button id="new" class="btn btn-quiet">New</button>
           <button id="delete" class="btn btn-quiet">Delete</button>
         </div>`
-      actions.querySelector('#library')!.addEventListener('click', () => leave('library'))
+      actions.querySelector('#back-lifts')!.addEventListener('click', () => leave('library'))
       actions.querySelector('#export')!.addEventListener('click', doExport)
       actions.querySelector('#new')!.addEventListener('click', () => { app.reset(); leave('upload') })
       actions.querySelector('#delete')!.addEventListener('click', async () => {
